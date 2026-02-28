@@ -117,7 +117,17 @@ export async function processUpdate(bot, update) {
                 scope: ['https://www.googleapis.com/auth/calendar.events'],
                 state: chatId.toString() // Use state to pass chatId to callback
             });
-            await bot.sendMessage(chatId, `Klik link ini untuk menghubungkan Google Calendar kamu 🤍:\n\n${authUrl}`);
+            const msgText = process.env.BOT_MODE === 'abang'
+                ? "Klik tombol di bawah ini buat ngehubungin kalendarmu ya Salma 🤍"
+                : "Klik tombol di bawah ini untuk menghubungkan kalendarmu bang 🤍";
+
+            await bot.sendMessage(chatId, msgText, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '🔗 Hubungkan Google Calendar', url: authUrl }]
+                    ]
+                }
+            });
             return;
         }
 
