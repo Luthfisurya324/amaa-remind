@@ -37,7 +37,9 @@ export async function sendDailySummary(bot, getAuthClient) {
             } else if (events.length <= 3) {
                 msg = `Selamat pagi! Hari ini ada ${events.length} agenda. Semangat ya! 💪\n\n`;
             } else {
-                msg = `Selamat pagi! Hari ini cukup padat (${events.length} agenda) 😅 Atur energi ya bang.\n\n`;
+                const isAbang = process.env.BOT_MODE === 'abang';
+                msg = isAbang ? `Selamat pagi Salma! Hari ini cukup padat (${events.length} agenda) 😅 Atur energi ya.\n\n` :
+                    `Selamat pagi! Hari ini cukup padat (${events.length} agenda) 😅 Atur energi ya bang.\n\n`;
             }
 
             events.forEach((event, i) => {
@@ -51,10 +53,12 @@ export async function sendDailySummary(bot, getAuthClient) {
                 const lastHour = new Date(events[events.length - 1].start.dateTime || events[events.length - 1].start.date).getHours();
 
                 if (firstHour < 7) {
-                    msg += `\n⚡ Hari ini mulai pagi banget! Jangan lupa istirahat cukup ya.`;
+                    const isAbang = process.env.BOT_MODE === 'abang';
+                    msg += isAbang ? `\n⚡ Hari ini mulai pagi banget! Jangan lupa sarapan dan istirahat cukup ya Salma.` : `\n⚡ Hari ini mulai pagi banget! Jangan lupa istirahat cukup ya.`;
                 }
                 if (lastHour >= 21) {
-                    msg += `\n🌙 Jadwal malam cukup padat, jaga kesehatan ya bang.`;
+                    const isAbang = process.env.BOT_MODE === 'abang';
+                    msg += isAbang ? `\n🌙 Jadwal malam cukup padat, jaga kesehatan ya Salma 🤍` : `\n🌙 Jadwal malam cukup padat, jaga kesehatan ya bang.`;
                 }
             }
 

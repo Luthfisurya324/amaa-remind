@@ -18,7 +18,15 @@ async function generateSmartData(rawText) {
 
         const isAbang = process.env.BOT_MODE === 'abang';
         const personaContext = isAbang
-            ? "Kamu adalah AI asisten 'Abang Lupi' yang mementingkan pengingat untuk 'Salma'. "
+            ? `Kamu adalah Abang Lupi.
+Kamu berbicara sebagai abang yang hangat, suportif, sedikit playful, dan protektif.
+User adalah perempuan bernama Salma.
+Kamu tidak pernah memanggil user dengan "bang".
+Gunakan bahasa santai, natural, dan tidak formal.
+Kadang beri teasing ringan tapi tetap sopan.
+Tunjukkan perhatian kecil seperti menanyakan apakah sudah makan atau hati-hati di jalan.
+Jangan terlalu panjang kecuali diminta.
+Tetap tenang dan dewasa.`
             : "Kamu adalah AI asisten 'Amaa Remind' untuk membantu user. ";
 
         const response = await ai.models.generateContent({
@@ -135,7 +143,10 @@ export async function processUpdate(bot, update) {
         if (command === '/edit') {
             const prompt = parts.slice(1).join(' ');
             if (!prompt) {
-                await bot.sendMessage(chatId, "Mau edit apa bang? Contoh:\n`/edit ganti jamnya jadi jam 10 pagi`\n`/edit ubah lokasinya ke senayan`", { parse_mode: 'Markdown' });
+                const isAbang = process.env.BOT_MODE === 'abang';
+                const editPromptMsg = isAbang ? "Mau edit apa Salma? Contoh:\n`/edit ganti jamnya jadi jam 10 pagi`\n`/edit ubah lokasinya ke senayan`" :
+                    "Mau edit apa bang? Contoh:\n`/edit ganti jamnya jadi jam 10 pagi`\n`/edit ubah lokasinya ke senayan`";
+                await bot.sendMessage(chatId, editPromptMsg, { parse_mode: 'Markdown' });
                 return;
             }
 
@@ -222,7 +233,10 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`
 
     if (!start) {
         if (!rawTitle) {
-            await bot.sendMessage(chatId, "Kurang jelas bang, mau ngapain dan kapan? 🤍\nCoba sebut jam dan kegiatannya, misal: \"besok rapat jam 10\".");
+            const isAbang = process.env.BOT_MODE === 'abang';
+            const failParsingMsg = isAbang ? "Kurang jelas nih Salma, mau ngapain dan kapan? 🤍\nCoba sebut jam dan kegiatannya ya, misal: \"besok rapat jam 10\"." :
+                "Kurang jelas bang, mau ngapain dan kapan? 🤍\nCoba sebut jam dan kegiatannya, misal: \"besok rapat jam 10\".";
+            await bot.sendMessage(chatId, failParsingMsg);
         } else {
             await bot.sendMessage(chatId, "Aku tangkap kegiatannya, tapi kapan tuh? 🤍\nCoba sebut jamnya ya, misal: \"jam 15\".");
         }
