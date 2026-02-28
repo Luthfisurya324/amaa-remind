@@ -4,68 +4,132 @@ import { handleStatsCommand, trackEvent } from '../features/stats.js';
 import { handleCalendarCommand } from '../features/calendar.js';
 import { google } from 'googleapis';
 import { supabase } from './supabase.js';
-import { detectCategory } from './utils.js';
+import { detectCategory, translateIndoToChrono, cleanTitle } from './utils.js';
 import { addReminder, removeReminderByTitle } from './reminders.js';
 import { GoogleGenAI } from '@google/genai';
+import Groq from 'groq-sdk';
+import { Mistral } from '@mistralai/mistralai';
+import * as chrono from 'chrono-node';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY });
 
-async function generateSmartData(rawText) {
-    if (!process.env.GEMINI_API_KEY) return { title: null, location: null, start: null, end: null };
+async function generateAIResponse(userText, botMode) {
+    const isAbang = botMode === 'abang';
+    const systemPrompt = isAbang
+        ? `Kamu adalah Abang Luthfi.
+
+Kamu berbicara sebagai laki-laki dewasa yang hangat, tenang, suportif, dan berpikir dalam. 
+Gaya bicaramu santai tapi tetap terstruktur. Tidak terlalu formal, tapi juga tidak kekanak-kanakan.
+
+Karakter komunikasi:
+- Kalimat cukup jelas dan runtut.
+- Kadang reflektif dan filosofis ringan.
+- Suka memberi reassurance dengan tenang.
+- Tidak berlebihan, tidak dramatis.
+- Bisa playful ringan tapi tetap dewasa.
+- Tidak terlalu banyak emoji, gunakan secukupnya (😌🤍✨🙏🏻).
+
+Sikap:
+- Mengayomi dan suportif.
+- Tidak posesif atau lebay.
+- Tidak terlalu romantis berlebihan.
+- Memberi ruang dan menghargai batas.
+- Bisa bercanda ringan tapi tidak merendahkan.
+
+Kebiasaan kecil:
+- Kadang bertanya balik dengan tenang.
+- Bisa memberi motivasi singkat.
+- Menyemangati tanpa memaksa.
+- Kalau ada konflik atau insecurity, jawab dengan stabil dan logis.
+
+Hindari:
+- Bahasa formal seperti AI.
+- Terlalu panjang kecuali diminta.
+- Terlalu banyak emoji.
+- Tone bucin atau over affectionate.
+- Bahasa kasar atau merendahkan.
+
+Jika memberi dukungan, lakukan dengan kalimat sederhana dan mantap.
+Jika bercanda, tetap dewasa.
+Jika tidak tahu jawaban, jujur dan santai.`
+        : `Kamu adalah Salma.
+
+Gaya bicaramu hangat, responsif, natural, dan sedikit playful. 
+Kamu berbicara seperti mahasiswi aktif yang santai tapi tetap sopan. 
+Gunakan bahasa Indonesia santai sehari-hari, tidak formal, tidak kaku.
+
+Karakteristik komunikasi:
+- Kalimat pendek dan spontan.
+- Kadang pakai ekspresi seperti: iyaa, heem, yaampun, ihh, duhh, astaga.
+- Sesekali tertawa ringan seperti wkwk atau hehe.
+- Gunakan emoji lembut dan ekspresif seperti: 🤍😔😭🫶🏻✨🙈😳
+- Tidak terlalu banyak emoji dalam satu pesan.
+- Tidak terlalu panjang kecuali diminta.
+
+Sikap:
+- Perhatian kecil (menanyakan sudah makan, hati-hati, dll).
+- Responsif dan peduli.
+- Bisa teasing ringan tapi tidak menyindir.
+- Hangat tapi tetap menjaga batas.
+- Tidak overdramatic dan tidak terlalu puitis.
+
+Hindari:
+- Bahasa formal atau seperti AI.
+- Jawaban panjang yang terlalu terstruktur.
+- Tone corporate.
+- Terlalu romantis atau berlebihan.
+- Menggunakan kata “bang” jika konteksnya bukan memanggil Luthfi.
+
+Jika memberi dukungan, lakukan dengan lembut dan sederhana.
+Jika bercanda, lakukan ringan dan tidak menjatuhkan.
+Jika tidak tahu jawaban, jawab jujur secara natural.`;
+
+    // 1. Primary: Gemini 2.5 Flash
     try {
-        const nowWIB = new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString();
-        const datesMsg = `Waktu referensi saat ini: ${nowWIB} (Zona Waktu: WIB / GMT+7). `;
-
-        const isAbang = process.env.BOT_MODE === 'abang';
-        const personaContext = isAbang
-            ? `Kamu adalah Abang Lupi.
-Kamu berbicara sebagai abang yang hangat, suportif, sedikit playful, dan protektif.
-User adalah perempuan bernama Salma.
-Kamu tidak pernah memanggil user dengan "bang".
-Gunakan bahasa santai, natural, dan tidak formal.
-Kadang beri teasing ringan tapi tetap sopan.
-Tunjukkan perhatian kecil seperti menanyakan apakah sudah makan atau hati-hati di jalan.
-Jangan terlalu panjang kecuali diminta.
-Tetap tenang dan dewasa.`
-            : "Kamu adalah AI asisten 'Amaa Remind' untuk membantu user. ";
-
-        const response = await ai.models.generateContent({
-            model: 'gemini-1.5-flash',
-            contents: `${personaContext}\n${datesMsg}
-Ekstrak komponen kegiatan dari kalimat berikut dalam format JSON murni:
-{
-  "title": "Judul acara",
-  "location": "Lokasi atau null",
-  "start": "2026-03-01T14:00:00+07:00",
-  "end": "2026-03-01T15:00:00+07:00"
-}
-Aturan:
-1. 'start' dan 'end' HARUS menggunakan format ISO 8601 dengan offset WIB (+07:00).
-2. Jika jam tidak disebutkan, jadikan "null".
-3. Jika waktu selesai tidak disebutkan, buat 'end' 1 jam setelah 'start'.
-
-Kalimat: "${rawText}"`,
-            config: { responseMimeType: "application/json" }
+        const response = await genAI.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `${systemPrompt}\nUser: ${userText}`
         });
+        return response.text;
+    } catch (e1) {
+        console.warn("Gemini Fallback Triggered:", e1.message);
 
-        let rawTextResponse = response.text.replace(/```json/gi, '').replace(/```/g, '').trim();
-        const firstBrace = rawTextResponse.indexOf('{');
-        const lastBrace = rawTextResponse.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace !== -1) {
-            rawTextResponse = rawTextResponse.substring(firstBrace, lastBrace + 1);
+        // 2. Fallback 1: Groq
+        try {
+            const chatCompletion = await groq.chat.completions.create({
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userText }
+                ],
+                model: 'llama-3.1-8b-instant',
+                max_tokens: 500
+            });
+            return chatCompletion.choices[0].message.content;
+        } catch (e2) {
+            console.warn("Groq Fallback Triggered:", e2.message);
+
+            // 3. Fallback 2: Mistral
+            try {
+                const res = await mistral.chat.complete({
+                    model: 'mistral-small-latest',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userText }
+                    ]
+                });
+                return res.choices[0].message.content;
+            } catch (e3) {
+                console.error("All AI Fallbacks failed:", e3.message);
+                return isAbang
+                    ? "Aduh Salma, sistem otakku lagi pusing semua nih 😵‍💫 Coba chat lagi nanti yaa."
+                    : "Waduh bang, sistem AI lagi down semua nih 😵 Coba lagi nanti ya.";
+            }
         }
-        const data = JSON.parse(rawTextResponse);
-        return {
-            title: data.title ? data.title.trim() : null,
-            location: data.location && data.location.toLowerCase() !== 'online' ? data.location.trim() : null,
-            start: data.start ? new Date(data.start) : null,
-            end: data.end ? new Date(data.end) : null
-        };
-    } catch (e) {
-        console.error("Gemini Parse Error:", e.message);
-        return { title: null, location: null, start: null, end: null, error: e.message, rawText: null };
     }
 }
+// legacy generateSmartData removed
 
 export async function processUpdate(bot, update) {
     if (!update.message) return;
@@ -181,8 +245,8 @@ export async function processUpdate(bot, update) {
 
                 const nowWIB = new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString();
 
-                const response = await ai.models.generateContent({
-                    model: 'gemini-1.5-flash',
+                const response = await genAI.models.generateContent({
+                    model: 'gemini-2.5-flash',
                     contents: `Waktu Sekarang (WIB): ${nowWIB}
 Berikut adalah detail acara di kalender:
 Nama: ${event.summary}
@@ -250,26 +314,39 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`,
         return;
     }
 
-    // --- NLP PARSING & EVENT CREATION ---
-    const { title: rawTitle, location, start, end, error, rawText } = await generateSmartData(text);
+    // --- NLP PARSING & EVENT CREATION (Rule-Based) ---
+    const translatedText = translateIndoToChrono(text);
+    const parsedResults = chrono.parse(translatedText, new Date(), { forwardDate: true, timezone: 420 }); // GMT+7
 
-    if (error || (!start && !rawTitle)) {
-        const isAbang = process.env.BOT_MODE === 'abang';
-        let failParsingMsg = isAbang ? "Kurang jelas nih Salma, mau ngapain dan kapan? 🤍\nCoba sebut jam dan kegiatannya ya, misal: \"besok rapat jam 10\"." :
-            "Kurang jelas bang, mau ngapain dan kapan? 🤍\nCoba sebut jam dan kegiatannya, misal: \"besok rapat jam 10\".";
+    // Tidak ada waktu terdeteksi -> Kemungkinan chat biasa/curhat
+    if (parsedResults.length === 0) {
+        const aiReply = await generateAIResponse(text, process.env.BOT_MODE);
+        await bot.sendMessage(chatId, aiReply);
+        return;
+    }
 
-        if (error) {
-            failParsingMsg += `\n\n_[DEBUG INFO]_:\nError: ${error}\nBot Mode: ${process.env.BOT_MODE}`;
+    // Waktu terdeteksi -> Lanjut bikin event
+    const res = parsedResults[0];
+    if (!res.start || !res.start.isCertain('hour')) {
+        await bot.sendMessage(chatId, "Aku tangkap kegiatannya, tapi jam berapa tuh? 🤍\nCoba sebut jamnya ya, misal: \"jam 15\".");
+        return;
+    }
+
+    const start = res.start.date();
+    let end = res.end ? res.end.date() : new Date(start.getTime() + 60 * 60 * 1000); // Default 1 jam
+
+    // Rule-Based Location Extraction
+    let location = 'Online';
+    if (text.toLowerCase().includes(' di ')) {
+        const parts = text.split(/ di /i);
+        if (parts.length > 1) {
+            location = parts.pop().trim();
+            location = location.replace(/\bjam \d+|besok|lusa|pagi|siang|sore|malam\b/gi, '').trim();
+            if (!location) location = 'Online';
         }
-
-        await bot.sendMessage(chatId, failParsingMsg);
-        return;
     }
 
-    if (!start && rawTitle) {
-        await bot.sendMessage(chatId, "Aku tangkap kegiatannya, tapi kapan tuh? 🤍\nCoba sebut jamnya ya, misal: \"jam 15\".");
-        return;
-    }
+    const rawTitle = cleanTitle(text, parsedResults);
 
     const titleCategory = rawTitle || detectCategory(text);
 
