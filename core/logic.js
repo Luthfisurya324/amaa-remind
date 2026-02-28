@@ -263,9 +263,7 @@ export async function processUpdate(bot, update) {
 
                 const nowWIB = new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString();
 
-                const response = await genAI.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: `Waktu Sekarang (WIB): ${nowWIB}
+                const systemPromptEdit = `Waktu Sekarang (WIB): ${nowWIB}
 Berikut adalah detail acara di kalender:
 Nama: ${event.summary}
 Lokasi: ${event.location || 'Online'}
@@ -284,11 +282,11 @@ Struktur output JSON yang valid:
   "end": {"dateTime": "2026-03-01T11:00:00+07:00", "timeZone": "Asia/Jakarta"}
 }
 Hanya sertakan field yang berubah. Jika jam diubah, pastikan \`end\` juga disesuaikan 1 jam setelah \`start\`.
-HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`,
-                    config: { responseMimeType: "application/json" }
-                });
+HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`;
 
-                let rawJson = response.text.replace(/```json/gi, '').replace(/```/g, '').trim();
+                const aiResponseText = await callTripleFallback(systemPromptEdit, "");
+
+                let rawJson = aiResponseText.replace(/```json/gi, '').replace(/```/g, '').trim();
                 const firstBrace = rawJson.indexOf('{');
                 const lastBrace = rawJson.lastIndexOf('}');
                 if (firstBrace !== -1 && lastBrace !== -1) {

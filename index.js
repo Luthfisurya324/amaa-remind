@@ -31,6 +31,7 @@ bot.setMyCommands([
     { command: 'stats', description: 'Statistik event bulan ini' },
     { command: 'resetstats', description: 'Reset statistik' },
     { command: 'delete', description: 'Hapus event terakhir' },
+    { command: 'edit', description: 'Edit event terakhir' },
     { command: 'help', description: 'Panduan penggunaan' },
 ]);
 
