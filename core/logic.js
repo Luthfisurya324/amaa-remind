@@ -30,7 +30,7 @@ Tetap tenang dan dewasa.`
             : "Kamu adalah AI asisten 'Amaa Remind' untuk membantu user. ";
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-1.5-flash',
             contents: `${personaContext}\n${datesMsg}
 Ekstrak komponen kegiatan dari kalimat berikut dalam format JSON murni:
 {
@@ -182,7 +182,7 @@ export async function processUpdate(bot, update) {
                 const nowWIB = new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString();
 
                 const response = await ai.models.generateContent({
-                    model: 'gemini-2.5-flash',
+                    model: 'gemini-1.5-flash',
                     contents: `Waktu Sekarang (WIB): ${nowWIB}
 Berikut adalah detail acara di kalender:
 Nama: ${event.summary}
