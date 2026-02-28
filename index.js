@@ -26,11 +26,12 @@ bot.setMyCommands([
     { command: 'today', description: 'Lihat jadwal hari ini' },
     { command: 'tomorrow', description: 'Lihat jadwal besok' },
     { command: 'week', description: 'Ringkasan 7 hari ke depan' },
+    { command: 'agenda', description: 'Lihat & hapus agenda mendatang' },
     { command: 'focus', description: 'Mulai sesi fokus' },
     { command: 'unfocus', description: 'Batalkan focus session' },
     { command: 'stats', description: 'Statistik event bulan ini' },
     { command: 'resetstats', description: 'Reset statistik' },
-    { command: 'delete', description: 'Hapus event terakhir' },
+    { command: 'delete', description: 'Lihat & hapus agenda' },
     { command: 'edit', description: 'Edit event terakhir' },
     { command: 'help', description: 'Panduan penggunaan' },
 ]);

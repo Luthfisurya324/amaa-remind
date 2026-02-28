@@ -219,21 +219,78 @@ export async function processUpdate(bot, update) {
             return;
         }
 
-        if (command === '/delete') {
-            const { data: state } = await supabase.from('user_state').select('last_google_event_id').eq('chat_id', chatId.toString()).eq('bot_mode', process.env.BOT_MODE).single();
-            if (!state?.last_google_event_id) {
-                await bot.sendMessage(chatId, "Nggak ada event yang bisa dihapus nih 🤔");
-                return;
-            }
+        if (command === '/delete' || command === '/agenda') {
             const authClient = await getAuthClient(chatId, bot);
             if (!authClient) return;
             const calendar = google.calendar({ version: 'v3', auth: authClient });
+
+            const start = new Date();
+            const end = new Date();
+            end.setDate(end.getDate() + 30);
+
             try {
-                await calendar.events.delete({ calendarId: 'primary', eventId: state.last_google_event_id });
-                await supabase.from('user_state').update({ last_google_event_id: null }).eq('chat_id', chatId.toString()).eq('bot_mode', process.env.BOT_MODE);
-                await bot.sendMessage(chatId, "Event terakhir sudah dihapus dari Calendar! 🗑️");
+                const res = await calendar.events.list({
+                    calendarId: 'primary',
+                    timeMin: start.toISOString(),
+                    timeMax: end.toISOString(),
+                    maxResults: 10,
+                    singleEvents: true,
+                    orderBy: 'startTime',
+                });
+                const events = res.data.items || [];
+                if (events.length === 0) {
+                    await bot.sendMessage(chatId, "Nggak ada agenda dalam 30 hari ke depan nih ✨");
+                    return;
+                }
+
+                let text = `📅 *Agenda 30 Hari Ke Depan:*\n\n`;
+                events.forEach((event, i) => {
+                    const d = new Date(event.start.dateTime || event.start.date);
+                    const dateStr = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: 'Asia/Jakarta' });
+                    const timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
+                    text += `${i + 1}. *${event.summary}* (${dateStr}, ${timeStr})\n   👉 Hapus: /del_${i + 1}\n\n`;
+                });
+                await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
             } catch (e) {
-                await bot.sendMessage(chatId, "Gagal menghapus event 😔");
+                console.error('Error fetching events for deletion:', e);
+                await bot.sendMessage(chatId, "Gagal mengambil daftar agenda 😔");
+            }
+            return;
+        }
+
+        const delMatch = command.match(/^\/del_(\d+)$/);
+        if (delMatch) {
+            const index = parseInt(delMatch[1], 10) - 1;
+            const authClient = await getAuthClient(chatId, bot);
+            if (!authClient) return;
+            const calendar = google.calendar({ version: 'v3', auth: authClient });
+
+            const start = new Date();
+            const end = new Date();
+            end.setDate(end.getDate() + 30);
+
+            try {
+                const res = await calendar.events.list({
+                    calendarId: 'primary',
+                    timeMin: start.toISOString(),
+                    timeMax: end.toISOString(),
+                    maxResults: 10,
+                    singleEvents: true,
+                    orderBy: 'startTime',
+                });
+                const events = res.data.items || [];
+
+                if (index < 0 || index >= events.length) {
+                    await bot.sendMessage(chatId, "Nomor agenda tidak valid 🤔");
+                    return;
+                }
+
+                const eventToDelete = events[index];
+                await calendar.events.delete({ calendarId: 'primary', eventId: eventToDelete.id });
+                await bot.sendMessage(chatId, `Agenda *${eventToDelete.summary}* berhasil dihapus! 🗑️`, { parse_mode: 'Markdown' });
+            } catch (e) {
+                console.error('Error deleting event:', e);
+                await bot.sendMessage(chatId, "Gagal menghapus agenda 😔");
             }
             return;
         }
