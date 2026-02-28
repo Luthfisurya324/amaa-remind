@@ -15,6 +15,59 @@ const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY });
 
+async function callTripleFallback(systemPrompt, userText) {
+    // 1. Primary: Gemini 2.5 Flash
+    try {
+        const response = await genAI.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `${systemPrompt}\nUser: ${userText}`
+        });
+        return response.text;
+    } catch (e1) {
+        console.warn("Gemini Fallback Triggered:", e1.message);
+
+        // 2. Fallback 1: Groq
+        try {
+            const chatCompletion = await groq.chat.completions.create({
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userText }
+                ],
+                model: 'llama-3.1-8b-instant',
+                max_tokens: 500
+            });
+            return chatCompletion.choices[0].message.content;
+        } catch (e2) {
+            console.warn("Groq Fallback Triggered:", e2.message);
+
+            // 3. Fallback 2: Mistral
+            try {
+                const res = await mistral.chat.complete({
+                    model: 'mistral-small-latest',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userText }
+                    ]
+                });
+                return res.choices[0].message.content;
+            } catch (e3) {
+                console.error("All AI Fallbacks failed:", e3.message);
+                throw new Error("All AI Fallbacks failed");
+            }
+        }
+    }
+}
+
+async function generateAITitle(userText) {
+    const systemPrompt = "Kamu adalah pengekstrak judul kalender acara. Berikan maksimal 5 kata untuk dijadikan judul acara berdasarkan teks yang dikirimkan user. Ganti kata ganti orang jika perlu. Buang keterangan waktu dan lokasi (seperti besok, jam 5, di rumah, dsb). Jangan pakai tanda kutip, jangan pakai titik. Contoh:\nInput: '31 menit lagi bola bareng rians di sudirman'\nOutput: Bola Bareng Rians\nInput: 'besok ngerjain tugas ppkn'\nOutput: Ngerjain Tugas PPKN\nJangan bicara, berikan purnakarya (hanya judul).";
+    try {
+        let title = await callTripleFallback(systemPrompt, userText);
+        return title.replace(/['"]/g, '').trim();
+    } catch (e) {
+        return null;
+    }
+}
+
 async function generateAIResponse(userText, botMode) {
     const isAbang = botMode === 'abang';
     const systemPrompt = isAbang
@@ -86,47 +139,12 @@ Jika memberi dukungan, lakukan dengan lembut dan sederhana.
 Jika bercanda, lakukan ringan dan tidak menjatuhkan.
 Jika tidak tahu jawaban, jawab jujur secara natural.`;
 
-    // 1. Primary: Gemini 2.5 Flash
     try {
-        const response = await genAI.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `${systemPrompt}\nUser: ${userText}`
-        });
-        return response.text;
-    } catch (e1) {
-        console.warn("Gemini Fallback Triggered:", e1.message);
-
-        // 2. Fallback 1: Groq
-        try {
-            const chatCompletion = await groq.chat.completions.create({
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userText }
-                ],
-                model: 'llama-3.1-8b-instant',
-                max_tokens: 500
-            });
-            return chatCompletion.choices[0].message.content;
-        } catch (e2) {
-            console.warn("Groq Fallback Triggered:", e2.message);
-
-            // 3. Fallback 2: Mistral
-            try {
-                const res = await mistral.chat.complete({
-                    model: 'mistral-small-latest',
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userText }
-                    ]
-                });
-                return res.choices[0].message.content;
-            } catch (e3) {
-                console.error("All AI Fallbacks failed:", e3.message);
-                return isAbang
-                    ? "Aduh Salma, sistem otakku lagi pusing semua nih 😵‍💫 Coba chat lagi nanti yaa."
-                    : "Waduh bang, sistem AI lagi down semua nih 😵 Coba lagi nanti ya.";
-            }
-        }
+        return await callTripleFallback(systemPrompt, userText);
+    } catch (e) {
+        return isAbang
+            ? "Aduh Salma, sistem otakku lagi pusing semua nih 😵‍💫 Coba chat lagi nanti yaa."
+            : "Waduh bang, sistem AI lagi down semua nih 😵 Coba lagi nanti ya.";
     }
 }
 // legacy generateSmartData removed
@@ -395,9 +413,10 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`,
         }
     }
 
-    const rawTitle = cleanTitle(text);
+    const aiTitle = await generateAITitle(text);
+    const rawTitle = aiTitle || cleanTitle(text);
 
-    const titleCategory = rawTitle || detectCategory(text);
+    const titleCategory = detectCategory(rawTitle);
 
     const authClient = await getAuthClient(chatId, bot);
     if (!authClient) return;
