@@ -397,7 +397,8 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`;
 
     // --- NLP PARSING & EVENT CREATION (Rule-Based) ---
     const translatedText = translateIndoToChrono(text);
-    const parsedResults = chrono.parse(translatedText, new Date(), { forwardDate: true, timezone: 420 }); // GMT+7
+    // Parse using timezone offset (420 minutes = +07:00) so "today" is evaluated correctly in WIB relative to current time
+    const parsedResults = chrono.parse(translatedText, { instant: new Date(), timezone: 420 }, { forwardDate: true, timezone: 420 }); // GMT+7
 
     // Tidak ada waktu terdeteksi -> Kemungkinan chat biasa/curhat
     if (parsedResults.length === 0) {

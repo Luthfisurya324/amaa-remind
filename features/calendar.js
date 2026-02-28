@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-
+import { getWIBStartOfDay } from '../core/utils.js';
 export async function handleCalendarCommand(bot, msg, command, { getAuthClient }) {
     const chatId = msg.chat.id;
 
@@ -9,10 +9,8 @@ export async function handleCalendarCommand(bot, msg, command, { getAuthClient }
         if (!authClient) return true;
         const calendar = google.calendar({ version: 'v3', auth: authClient });
 
-        const start = new Date();
-        start.setHours(0, 0, 0, 0);
-        const end = new Date();
-        end.setHours(23, 59, 59, 999);
+        const start = getWIBStartOfDay(new Date(), 0);
+        const end = new Date(start.getTime() + 24 * 3600 * 1000 - 1);
 
         try {
             const res = await calendar.events.list({
@@ -47,11 +45,8 @@ export async function handleCalendarCommand(bot, msg, command, { getAuthClient }
         if (!authClient) return true;
         const calendar = google.calendar({ version: 'v3', auth: authClient });
 
-        const start = new Date();
-        start.setDate(start.getDate() + 1);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(start);
-        end.setHours(23, 59, 59, 999);
+        const start = getWIBStartOfDay(new Date(), 1);
+        const end = new Date(start.getTime() + 24 * 3600 * 1000 - 1);
 
         try {
             const res = await calendar.events.list({
@@ -86,10 +81,8 @@ export async function handleCalendarCommand(bot, msg, command, { getAuthClient }
         if (!authClient) return true;
         const calendar = google.calendar({ version: 'v3', auth: authClient });
 
-        const startOfWeek = new Date();
-        startOfWeek.setHours(0, 0, 0, 0);
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(endOfWeek.getDate() + 7);
+        const startOfWeek = getWIBStartOfDay(new Date(), 0);
+        const endOfWeek = new Date(startOfWeek.getTime() + 7 * 24 * 3600 * 1000 - 1);
 
         try {
             const res = await calendar.events.list({

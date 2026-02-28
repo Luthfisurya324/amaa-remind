@@ -10,6 +10,15 @@ export function detectCategory(title) {
     return "📝 " + title;
 }
 
+// Dapatkan awal hari (00:00:00) versi WIB, namun dalam object Date absolut (UTC)
+export function getWIBStartOfDay(baseDate = new Date(), offsetDays = 0) {
+    const wibMs = baseDate.getTime() + (7 * 3600 * 1000);
+    const d = new Date(wibMs);
+    d.setUTCDate(d.getUTCDate() + offsetDays);
+    d.setUTCHours(0, 0, 0, 0);
+    return new Date(d.getTime() - (7 * 3600 * 1000));
+}
+
 // Bersihkan judul dari kata-kata waktu
 export function cleanTitle(text) {
     let rawTitle = text.toLowerCase();
