@@ -47,9 +47,12 @@ export function cleanTitle(text) {
 export function translateIndoToChrono(text) {
     let lowerText = text.toLowerCase();
 
-    // Replace "jam X" -> "at X"
-    lowerText = lowerText.replace(/jam (\d+)/g, 'at $1');
-    lowerText = lowerText.replace(/pukul (\d+)/g, 'at $1');
+    // Replace "jam X" -> "at X", supports format like 10.00 or 10:00
+    lowerText = lowerText.replace(/jam (\d+(?:\.\d+)?|\d+(?::\d+)?)/g, 'at $1');
+    lowerText = lowerText.replace(/pukul (\d+(?:\.\d+)?|\d+(?::\d+)?)/g, 'at $1');
+
+    // Convert . to : for chrono to understand HH:mm instead of HH.mm
+    lowerText = lowerText.replace(/(?:at\s+)(\d+)\.(\d+)/g, 'at $1:$2');
 
     // Replace dates
     lowerText = lowerText.replace(/\bbesok\b/g, 'tomorrow');
