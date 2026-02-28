@@ -29,7 +29,7 @@ export async function handleCalendarCommand(bot, msg, command, { getAuthClient }
             } else {
                 let text = `📅 Jadwal Hari Ini:\n\n`;
                 events.forEach((event, i) => {
-                    const s = new Date(event.start.dateTime || event.start.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                    const s = new Date(event.start.dateTime || event.start.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
                     text += `${i + 1}. ${event.summary} (${s})\n`;
                 });
                 bot.sendMessage(chatId, text);
@@ -68,7 +68,7 @@ export async function handleCalendarCommand(bot, msg, command, { getAuthClient }
             } else {
                 let text = `📅 Jadwal Besok:\n\n`;
                 events.forEach((event, i) => {
-                    const s = new Date(event.start.dateTime || event.start.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                    const s = new Date(event.start.dateTime || event.start.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
                     text += `${i + 1}. ${event.summary} (${s})\n`;
                 });
                 bot.sendMessage(chatId, text);
@@ -124,9 +124,9 @@ export async function handleCalendarCommand(bot, msg, command, { getAuthClient }
             const grouped = {};
             events.forEach(event => {
                 const d = new Date(event.start.dateTime || event.start.date);
-                const key = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
+                const key = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'Asia/Jakarta' });
                 if (!grouped[key]) grouped[key] = [];
-                const time = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                const time = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
                 grouped[key].push(`  ${time} - ${event.summary}`);
             });
 
