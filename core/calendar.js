@@ -1,12 +1,8 @@
-const fs = require('fs');
-const http = require('http');
-const url = require('url');
-const { google } = require('googleapis');
+import { google } from 'googleapis';
+import { supabase } from './supabase.js';
 
-let pendingAuthChatId = null;
-
-function getOAuth2Client() {
-    const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/oauth2callback';
+export function getOAuth2Client() {
+    const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/api/oauth2callback';
     return new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET,
@@ -14,11 +10,41 @@ function getOAuth2Client() {
     );
 }
 
-function getAuthClient(chatId, bot) {
+export async function getAuthClient(chatId, bot) {
     const oAuth2Client = getOAuth2Client();
     try {
-        const token = JSON.parse(fs.readFileSync('token.json'));
-        oAuth2Client.setCredentials(token);
+        const { data: tokenData, error } = await supabase
+            .from('tokens')
+            .select('token_data')
+            .eq('chat_id', chatId.toString())
+            .single();
+
+        if (error || !tokenData) throw new Error('No token found');
+
+        oAuth2Client.setCredentials(tokenData.token_data);
+
+        // Handle token refresh automatically
+        oAuth2Client.on('tokens', async (tokens) => {
+            if (tokens.refresh_token) {
+                // If we got a new refresh token, store everything
+                await supabase
+                    .from('tokens')
+                    .upsert({ chat_id: chatId.toString(), token_data: tokens });
+            } else {
+                // Otherwise just update the access token parts
+                const { data: current } = await supabase
+                    .from('tokens')
+                    .select('token_data')
+                    .eq('chat_id', chatId.toString())
+                    .single();
+
+                const updatedToken = { ...current.token_data, ...tokens };
+                await supabase
+                    .from('tokens')
+                    .upsert({ chat_id: chatId.toString(), token_data: updatedToken });
+            }
+        });
+
         return oAuth2Client;
     } catch (e) {
         if (chatId && bot) {
@@ -28,66 +54,23 @@ function getAuthClient(chatId, bot) {
     }
 }
 
-function startCallbackServer(bot) {
-    const callbackServer = http.createServer((req, res) => {
-        try {
-            if (req.url && req.url.startsWith('/oauth2callback')) {
-                const queryParams = new url.URL(req.url, 'http://localhost:3000').searchParams;
-                const code = queryParams.get('code');
+export async function saveToken(chatId, token) {
+    const { error } = await supabase
+        .from('tokens')
+        .upsert({ chat_id: chatId.toString(), token_data: token });
 
-                if (code) {
-                    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-                    res.end('<h1>✅ Berhasil!</h1><p>Kamu bisa menutup halaman ini dan kembali ke Telegram.</p>');
-
-                    const oAuth2Client = getOAuth2Client();
-                    oAuth2Client.getToken(code, (err, token) => {
-                        if (err) {
-                            console.error('Error saat mengambil token:', err);
-                            if (pendingAuthChatId && bot) bot.sendMessage(pendingAuthChatId, 'Gagal mendapatkan token 😔 Coba ulangi /connect');
-                            return;
-                        }
-                        fs.writeFileSync('token.json', JSON.stringify(token));
-                        console.log('Token berhasil disimpan ke token.json!');
-                        if (pendingAuthChatId && bot) {
-                            bot.sendMessage(pendingAuthChatId, 'Google Calendar berhasil terhubung! 🎉🤍\n\nSekarang kamu bisa langsung kirim jadwal, contoh:\n"Besok jam 9 meeting"');
-                            pendingAuthChatId = null;
-                        }
-                    });
-                } else {
-                    res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-                    res.end('<h1>❌ Gagal</h1><p>Tidak ada kode otorisasi.</p>');
-                }
-            } else {
-                res.writeHead(404);
-                res.end('Not found');
-            }
-        } catch (e) {
-            console.error('Callback server error:', e);
-            res.writeHead(500);
-            res.end('Server error');
-        }
-    });
-
-    callbackServer.listen(3000, () => {
-        console.log('OAuth callback server aktif di port 3000');
-    });
+    if (error) {
+        console.error('❌ Error saving token:', error);
+        throw error;
+    }
 }
 
-function setPendingAuthChatId(id) {
-    pendingAuthChatId = id;
-}
+// 🔄 CRASH RECOVERY — Scan Calendar and sync with Supabase
+export async function crashRecoveryCheck(bot, chatId, loadReminders, addReminder) {
+    const authClient = await getAuthClient(chatId, bot);
+    if (!authClient) return;
 
-// 🔄 CRASH RECOVERY — Scan Calendar on startup
-async function crashRecoveryCheck(bot, FILE_PATHS, loadReminders, saveReminders) {
-    let latestChatId = null;
-    try {
-        latestChatId = fs.readFileSync(FILE_PATHS.LAST_CHAT_FILE, 'utf8');
-    } catch (e) { return; }
-
-    const oAuth2Client = getAuthClient(null, bot);
-    if (!oAuth2Client) return;
-
-    const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
+    const calendar = google.calendar({ version: 'v3', auth: authClient });
     const now = new Date();
     const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
@@ -101,30 +84,33 @@ async function crashRecoveryCheck(bot, FILE_PATHS, loadReminders, saveReminders)
         });
 
         const events = res.data.items || [];
-        let reminders = loadReminders();
+
+        // Note: loadReminders would now fetch from Supabase
+        const { data: existingReminders } = await supabase
+            .from('reminders')
+            .select('*')
+            .eq('chat_id', chatId.toString())
+            .eq('sent', false);
+
         let added = 0;
 
-        events.forEach(event => {
+        for (const event of events) {
             const eventStart = new Date(event.start.dateTime || event.start.date).getTime();
             const reminderTime = eventStart - (30 * 60 * 1000);
 
-            if (reminderTime <= Date.now()) return;
-            const exists = reminders.some(r =>
-                !r.sent && Math.abs(r.reminderTime - reminderTime) < 60000
+            if (reminderTime <= Date.now()) continue;
+
+            const exists = existingReminders.some(r =>
+                Math.abs(new Date(r.reminder_time).getTime() - reminderTime) < 60000
             );
+
             if (!exists) {
-                reminders.push({
-                    chatId: parseInt(latestChatId),
-                    title: event.summary || 'Agenda',
-                    reminderTime,
-                    sent: false
-                });
+                await addReminder(chatId, event.summary || 'Agenda', reminderTime, eventStart);
                 added++;
             }
-        });
+        }
 
         if (added > 0) {
-            saveReminders(reminders);
             console.log(`Crash recovery: ${added} reminder di-generate ulang dari Calendar`);
         } else {
             console.log('Crash recovery: semua reminder sudah sinkron ✅');
@@ -133,11 +119,3 @@ async function crashRecoveryCheck(bot, FILE_PATHS, loadReminders, saveReminders)
         console.error('Crash recovery gagal:', e.message);
     }
 }
-
-module.exports = {
-    getOAuth2Client,
-    getAuthClient,
-    startCallbackServer,
-    setPendingAuthChatId,
-    crashRecoveryCheck
-};

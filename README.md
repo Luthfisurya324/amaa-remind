@@ -1,6 +1,8 @@
-# 🤍 Amaa Remind
+# 🤍 Amaa Remind (Cloud Edition)
 
-**Telegram Bot + Google Calendar Assistant** — Asisten pribadi yang memahami bahasa Indonesia secara natural untuk menjadwalkan event ke Google Calendar.
+**Telegram Bot + Google Calendar Assistant** — Asisten pribadi yang memahami bahasa Indonesia secara natural untuk menjadwalkan event ke Google Calendar. 
+
+Sekarang berjalan **24 Jam Non-stop** di Cloud menggunakan **Vercel (Serverless)** dan **Supabase (PostgreSQL)**!
 
 ---
 
@@ -12,95 +14,104 @@
 | 🏷️ **Auto Kategori + Emoji** | Otomatis mendeteksi jenis kegiatan (Rapat, Belajar, Olahraga, dll) |
 | ⏳ **Durasi Otomatis** | Tidak menyebut jam selesai? Default 1 jam |
 | ⚠️ **Deteksi Jadwal Bentrok** | Peringatan jika sudah ada event lain di jam yang sama |
-| 🔔 **Persistent Reminder** | Notifikasi 30 menit sebelum event — tetap aktif walau bot di-restart |
+| 🔔 **Persistent Reminder** | Notifikasi otomatis via Webhook (Aman walau server restart) |
 | 📅 **Smart Daily Summary** | Ringkasan pagi jam 6 dengan tone personal sesuai kepadatan hari |
 | 📊 **Weekly Overview** | Lihat ringkasan 7 hari ke depan + hari paling padat |
 | 🔕 **Focus Mode** | Buat sesi fokus dengan durasi kustom + notifikasi saat selesai |
 | 📈 **Monthly Stats** | Statistik event dan kategori terbanyak bulan ini |
 | 🗑️ **Hapus Event Terakhir** | Salah bikin? Hapus cepat via `/delete` |
-| 🔐 **OAuth via Telegram** | Hubungkan Google Calendar langsung dari chat, tanpa script terpisah |
+| 🔐 **OAuth via Telegram** | Hubungkan Google Calendar langsung dari chat |
+| ☁️ **Cloud Native** | Stateless architecture, berjalan di Vercel Functions |
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ Tech Stack Baru
 
-- **Runtime:** Node.js
+- **Runtime:** Node.js (ES Modules)
+- **Deployment:** [Vercel](https://vercel.com/) (Serverless Functions / Webhook Mode)
+- **Database:** [Supabase](https://supabase.com/) (PostgreSQL)
 - **Bot Framework:** [node-telegram-bot-api](https://github.com/yagop/node-telegram-bot-api)
-- **NLP Date Parser:** [chrono-node](https://github.com/wanasit/chrono) + Indonesian translator
+- **NLP Date Parser:** [chrono-node](https://github.com/wanasit/chrono)
 - **Calendar API:** [Google Calendar API v3](https://developers.google.com/calendar) via `googleapis`
-- **Scheduler:** [node-cron](https://github.com/node-cron/node-cron)
-- **Environment:** [dotenv](https://github.com/motdotla/dotenv)
+- **Cron Service:** [cron-job.org](https://cron-job.org/) (Gratis & Stabil)
 
 ---
 
-## 📁 Struktur Project
+## 📁 Struktur Project (Serverless)
 
 ```
 amaa-remind/
-├── core/               # Core modules (utils, calendar, reminders)
-├── features/           # Feature modules (stats, focus, daily, calendar)
-├── index.js            # Main entrypoint & bot orchestration
-├── .env                # Environment variables (secrets)
-├── .gitignore          # Mencegah file sensitif ter-commit
-├── credentials.json    # Google Cloud OAuth2 credentials
-├── token.json          # OAuth2 token (auto-generated)
-├── reminders.json      # Persistent reminders (auto-generated)
-├── stats.json          # Monthly event statistics (auto-generated)
-├── last_chat_id.txt    # Chat ID terakhir (untuk daily summary)
-├── package.json        # Dependencies & metadata
-└── README.md           # Dokumentasi ini
+├── api/                # Vercel Serverless Endpoints
+│   ├── check-reminders.js # Cek reminder (1 menit sekali)
+│   ├── daily-summary.js   # Ringkasan harian (Jam 6 pagi)
+│   ├── oauth2callback.js  # Callback Google OAuth2
+│   └── webhook.js         # Endpoint utama Telegram Bot
+├── core/               # Logika Utama Bot
+│   ├── calendar.js     # Interaksi Google Calendar & Token
+│   ├── logic.js        # Controller & Message Router
+│   ├── reminders.js    # Logika Pengingat
+│   ├── supabase.js     # Base Client Supabase
+│   └── utils.js        # Fungsi Helper
+├── features/           # Modul Fungsionalitas
+│   ├── calendar.js     # /today, /tomorrow, /week
+│   ├── daily.js        # Logic Smart Daily Summary
+│   ├── focus.js        # /focus, /unfocus
+│   └── stats.js        # /stats, /resetstats
+├── .env                # Variabel Lingkungan Lokal
+├── index.js            # Entrypoint untuk LOCAL DEV (Polling)
+├── vercel.json         # Routing Rules untuk Vercel
+└── package.json        # Dependencies
 ```
 
 ---
 
-## 🚀 Instalasi & Setup
+## 🚀 Instalasi & Deployment (Vercel + Supabase)
 
-### 1. Clone & Install Dependencies
-
-```bash
-git clone <repo-url>
-cd amaa-remind
-npm install
-```
-
-### 2. Setup Google Cloud Console
-
-1. Buka [Google Cloud Console](https://console.cloud.google.com/)
-2. Buat project baru atau pilih yang sudah ada
-3. Aktifkan **Google Calendar API**
-4. Buat **OAuth 2.0 Client ID** (tipe: Web Application)
-5. Tambahkan **Authorized redirect URI:**
+### 1. Setup Supabase (Database)
+1. Buat project baru di [Supabase](https://supabase.com).
+2. Di menu **SQL Editor**, jalankan query ini untuk membuat tabel:
+   ```sql
+   create table reminders (id uuid default gen_random_uuid() primary key, chat_id text, title text, start_time timestamptz, reminder_time timestamptz, sent boolean default false);
+   create table transactions (id uuid default gen_random_uuid() primary key, type text, category text, amount integer, date date default current_date);
+   create table stats (id uuid default gen_random_uuid() primary key, month text, category text, count integer default 1, event_hours jsonb default '[]'::jsonb, unique(month, category));
+   create table user_state (chat_id text primary key, last_chat_id text, last_google_event_id text, last_focus_event_id text);
+   create table tokens (chat_id text primary key, token_data jsonb);
    ```
-   http://localhost:3000/oauth2callback
-   ```
-6. Catat `Client ID` dan `Client Secret`
+3. Copy **Project URL** dan **Anon Public Key** dari Settings -> API.
 
-### 3. Setup Telegram Bot
+### 2. Setup Vercel (Hosting)
+1. Push repository ini ke GitHub.
+2. Login ke [Vercel](https://vercel.com) dan import repository-nya.
+3. Di bagian **Environment Variables**, tambahkan:
+   - `TELEGRAM_TOKEN` = (Token bot Telegram dari @BotFather)
+   - `GOOGLE_CLIENT_ID` = (Client ID dari Google Cloud Console)
+   - `GOOGLE_CLIENT_SECRET` = (Client Secret dari Google Cloud Console)
+   - `SUPABASE_URL` = (Dari Supabase)
+   - `SUPABASE_ANON_KEY` = (Dari Supabase)
+   - `OAUTH_REDIRECT_URI` = `https://<URL-VERCEL-KAMU>.vercel.app/api/oauth2callback`
+   - `CRON_SECRET` = (Buat password acak, contoh: `bebas-apa-aja-123`)
+4. Klik **Deploy**.
 
-1. Chat ke [@BotFather](https://t.me/BotFather) di Telegram
-2. Kirim `/newbot` dan ikuti instruksi
-3. Catat **API Token** yang diberikan
+### 3. Aktifkan Webhook Telegram
+Setelah Vercel selesai deploy, buka browser dan akses URL ini untuk menyambungkan Telegram ke Vercel:
+`https://api.telegram.org/bot<TELEGRAM_TOKEN>/setWebhook?url=https://<URL-VERCEL-KAMU>.vercel.app/api/webhook`
 
-### 4. Konfigurasi Environment
+### 4. Setup Cron-job.org (Automation)
+Daftar di [cron-job.org](https://cron-job.org/) dan buat 2 jobs:
+1. **Reminder Cron**
+   - URL: `https://<URL-VERCEL-KAMU>.vercel.app/api/check-reminders?secret=bebas-apa-aja-123`
+   - Schedule: Every 1 Minute
+2. **Daily Summary Cron**
+   - URL: `https://<URL-VERCEL-KAMU>.vercel.app/api/daily-summary?secret=bebas-apa-aja-123`
+   - Schedule: Daily at 06:00 (Asia/Jakarta)
 
-Buat file `.env` di root project:
+---
 
-```env
-TELEGRAM_TOKEN=your_telegram_bot_token
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
-```
-
-### 5. Jalankan Bot
-
-```bash
-node index.js
-```
-
-### 6. Hubungkan Google Calendar
-
-Buka Telegram → Chat bot kamu → Ketik `/connect` → Klik link → Login & izinkan akses. Selesai! 🎉
+## 💻 Local Development
+Jika ingin testing di komputer lokal (mode polling, bukan webhook):
+1. Copy file `.env.example` menjadi `.env` dan isi valuenya.
+2. `OAUTH_REDIRECT_URI` rubah jadi `http://localhost:3000/api/oauth2callback`.
+3. Jalankan `npm run dev`. Bot akan berjalan dalam mode polling!
 
 ---
 
@@ -132,85 +143,5 @@ Buka Telegram → Chat bot kamu → Ketik `/connect` → Klik link → Login & i
 
 ---
 
-## 🏷️ Auto Kategori
-
-| Kata Kunci | Kategori |
-|---|---|
-| rapat, meeting | 📞 Rapat |
-| belajar, kelas, kampus, kuliah | 📚 Belajar |
-| gym, lari, olahraga | 🏋️ Olahraga |
-| makan, dinner, lunch | 🍽️ Makan |
-| nongkrong, main, jalan | ☕ Santai |
-| focus, fokus | 🔕 Focus Session |
-| *(lainnya)* | 📝 [judul asli] |
-
----
-
-## 🔤 Kamus Terjemahan Bahasa Indonesia
-
-| Bahasa Indonesia | Diterjemahkan ke |
-|---|---|
-| besok | tomorrow |
-| lusa | day after tomorrow |
-| hari ini | today |
-| minggu/bulan/tahun depan | next week/month/year |
-| jam [angka] | at [angka] |
-| sampe / sampai | to |
-| pagi | morning |
-| siang / sore | afternoon |
-| malam | evening |
-
----
-
-## ⚙️ Fitur Otomatis
-
-### 🔔 Persistent Reminder
-Reminder disimpan ke `reminders.json` dan dicek setiap 30 detik via cron. Event yang dijadwalkan akan tetap mendapat reminder meski bot di-restart.
-
-### 📅 Smart Daily Summary (Jam 6 Pagi)
-Pesan pagi disesuaikan dengan kepadatan:
-- **0 event:** "Hari ini kosong, selamat istirahat! ✨"
-- **1 event:** "Santai 🤍 cuma ada 1 agenda"
-- **2–3 event:** "Ada beberapa agenda, semangat! 💪"
-- **4+ event:** "Cukup padat 😅 atur energi ya"
-
-### 🔕 Focus Mode
-Ketik `/focus 2 jam` untuk:
-- Membuat event "🔕 Focus Session" di Google Calendar
-- Mendapat notifikasi saat sesi selesai
-
-### 📈 Monthly Stats
-Setiap event yang dibuat via bot dicatat di `stats.json`. Ketik `/stats` untuk lihat ringkasan bulanan.
-
----
-
-## 🔐 Security
-
-- Semua secrets disimpan di `.env` (tidak di-commit)
-- `credentials.json`, `token.json` ada di `.gitignore`
-- OAuth2 flow via Telegram (`/connect`) — aman dan praktis
-
----
-
-## 🐛 Troubleshooting
-
-| Error | Solusi |
-|---|---|
-| `409 Conflict` | Pastikan hanya 1 instance bot berjalan: `taskkill /F /IM node.exe /T` |
-| `No refresh token` | Jalankan `/connect` ulang dari Telegram |
-| `Access blocked` | Tambahkan email sebagai Test User di Google Cloud Console → OAuth Consent Screen |
-| `EADDRINUSE port 3000` | Port 3000 masih dipakai proses lain, matikan dulu |
-
----
-
-## 📋 Catatan Pengembangan
-
-- **Single-user optimized:** Dirancang untuk penggunaan pribadi, ringan tanpa database
-- **File-based storage:** `reminders.json`, `stats.json`, `last_chat_id.txt`
-- **Webhook mode:** Untuk deployment cloud, pertimbangkan ganti polling ke webhook
-
----
-
 ## 📄 Lisensi
-
 ISC

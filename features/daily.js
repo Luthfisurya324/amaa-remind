@@ -1,20 +1,17 @@
-const fs = require('fs');
-const cron = require('node-cron');
-const { google } = require('googleapis');
+import { google } from 'googleapis';
+import { supabase } from '../core/supabase.js';
 
-function initDailySummary(bot, FILE_PATHS, getAuthClient) {
-    const { LAST_CHAT_FILE } = FILE_PATHS;
+export async function sendDailySummary(bot, getAuthClient) {
+    // Get all chat IDs that have tokens (meaning they are connected)
+    const { data: users, error: fetchError } = await supabase
+        .from('tokens')
+        .select('chat_id');
 
-    cron.schedule('0 6 * * *', async () => {
-        let latestChatId = null;
-        try {
-            latestChatId = fs.readFileSync(LAST_CHAT_FILE, 'utf8');
-        } catch (e) { }
+    if (fetchError || !users) return;
 
-        if (!latestChatId) return;
-
-        const oAuth2Client = getAuthClient(null, bot);
-        if (!oAuth2Client) return;
+    for (const { chat_id } of users) {
+        const oAuth2Client = await getAuthClient(chat_id, bot);
+        if (!oAuth2Client) continue;
 
         const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
         const startOfDay = new Date();
@@ -61,13 +58,10 @@ function initDailySummary(bot, FILE_PATHS, getAuthClient) {
                 }
             }
 
-            bot.sendMessage(latestChatId, msg);
+            await bot.sendMessage(chat_id, msg);
+            console.log(`✅ Daily summary sent to ${chat_id}`);
         } catch (e) {
-            console.error("Gagal get daily summary:", e.message);
+            console.error(`❌ Failed to send daily summary to ${chat_id}:`, e.message);
         }
-    });
-
-    console.log('Daily summary scheduler aktif (06:00)');
+    }
 }
-
-module.exports = { initDailySummary };
