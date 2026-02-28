@@ -448,15 +448,18 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`;
         return;
     }
 
-    let start = baseRes.start.date();
-    start.setHours(startHour, startMinute, 0, 0);
+    const baseParsedDate = baseRes.start.date();
+    const baseYear = baseParsedDate.getUTCFullYear();
+    const baseMonth = baseParsedDate.getUTCMonth();
+    const baseDay = baseParsedDate.getUTCDate();
+
+    let start = new Date(Date.UTC(baseYear, baseMonth, baseDay, startHour - 7, startMinute, 0, 0));
 
     let end;
     if (endHour !== null) {
-        end = new Date(start.getTime());
-        end.setHours(endHour, endMinute, 0, 0);
+        end = new Date(Date.UTC(baseYear, baseMonth, baseDay, endHour - 7, endMinute, 0, 0));
         // Jika end time lebih kecil dari start time (misal 23.00 ke 01.00), anggap besoknya
-        if (end < start) end.setDate(end.getDate() + 1);
+        if (end < start) end.setUTCDate(end.getUTCDate() + 1);
     } else {
         end = new Date(start.getTime() + 60 * 60 * 1000); // Default 1 jam
     }
@@ -478,7 +481,10 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`;
     }
 
     const aiTitle = await generateAITitle(text);
-    const rawTitle = aiTitle || cleanTitle(text);
+    let rawTitle = aiTitle || cleanTitle(text);
+    if (rawTitle.toLowerCase() === 'undefined' || rawTitle.trim() === '') {
+        rawTitle = cleanTitle(text) || 'Agenda';
+    }
 
     const titleCategory = detectCategory(rawTitle);
 

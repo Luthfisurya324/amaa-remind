@@ -28,7 +28,8 @@ export async function handleCalendarCommand(bot, msg, command, { getAuthClient }
                 let text = `📅 Jadwal Hari Ini:\n\n`;
                 events.forEach((event, i) => {
                     const s = new Date(event.start.dateTime || event.start.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
-                    text += `${i + 1}. ${event.summary} (${s})\n`;
+                    const safeSummary = (event.summary || '(Tanpa judul)').replace(/[<>]/g, '');
+                    text += `${i + 1}. ${safeSummary} (${s})\n`;
                 });
                 bot.sendMessage(chatId, text);
             }
@@ -64,7 +65,8 @@ export async function handleCalendarCommand(bot, msg, command, { getAuthClient }
                 let text = `📅 Jadwal Besok:\n\n`;
                 events.forEach((event, i) => {
                     const s = new Date(event.start.dateTime || event.start.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
-                    text += `${i + 1}. ${event.summary} (${s})\n`;
+                    const safeSummary = (event.summary || '(Tanpa judul)').replace(/[<>]/g, '');
+                    text += `${i + 1}. ${safeSummary} (${s})\n`;
                 });
                 bot.sendMessage(chatId, text);
             }
@@ -120,7 +122,8 @@ export async function handleCalendarCommand(bot, msg, command, { getAuthClient }
                 const key = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'Asia/Jakarta' });
                 if (!grouped[key]) grouped[key] = [];
                 const time = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
-                grouped[key].push(`  ${time} - ${event.summary.replace(/[<>]/g, '')}`);
+                const safeSummary = (event.summary || '(Tanpa judul)').replace(/[<>]/g, '');
+                grouped[key].push(`  ${time} - ${safeSummary}`);
             });
 
             Object.keys(grouped).forEach(hari => {
