@@ -60,6 +60,11 @@ export function translateIndoToChrono(text) {
     lowerText = lowerText.replace(/\bsampe\b/g, 'to');
     lowerText = lowerText.replace(/\bsampai\b/g, 'to');
 
+    // Relative Time
+    lowerText = lowerText.replace(/(\d+)\s+menit\s+lagi/g, 'in $1 minutes');
+    lowerText = lowerText.replace(/(\d+)\s+jam\s+lagi/g, 'in $1 hours');
+    lowerText = lowerText.replace(/setengah\s+jam\s+lagi/g, 'in 30 minutes');
+
     // Replace time of day
     lowerText = lowerText.replace(/\bpagi\b/g, 'morning');
     lowerText = lowerText.replace(/\bsiang\b/g, 'afternoon');

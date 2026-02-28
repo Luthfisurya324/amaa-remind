@@ -336,11 +336,17 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`,
         if (res.start && res.start.isCertain('day')) {
             baseRes = res; // Pakai hasil yang punya informasi hari yg pasti
         }
-        if (res.start && res.start.isCertain('hour')) {
+
+        // Cek hour dari knownValues (pasti) atau impliedValues (seperti relative time "in 31 minutes")
+        const hasHour = res.start && (res.start.isCertain('hour') || res.start.impliedValues.hour !== undefined || res.start.get('hour') !== null);
+
+        if (hasHour) {
             if (startHour === null) {
                 startHour = res.start.get('hour');
                 startMinute = res.start.get('minute') || 0;
-                if (res.end && res.end.isCertain('hour')) {
+
+                const hasEndHour = res.end && (res.end.isCertain('hour') || res.end.impliedValues?.hour !== undefined || res.end.get('hour') !== null);
+                if (hasEndHour) {
                     endHour = res.end.get('hour');
                     endMinute = res.end.get('minute') || 0;
                 }
@@ -383,6 +389,8 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`,
             location = location.replace(/\b(?:sampe|sampai|s\/d)\s*(?:jam|pukul)?\s*\d{1,2}(?:\.\d{2})?\b/gi, '');
             location = location.replace(/\b(?:besok|lusa|hari ini|nanti|minggu depan|bulan depan|tahun depan)\b/gi, '');
             location = location.replace(/\b(?:pagi|siang|sore|malam)\b/gi, '').trim();
+            // Relative time cleaning
+            location = location.replace(/\b\d+\s+(?:menit|jam)\s+lagi\b/gi, '').trim();
             if (!location) location = 'Online';
         }
     }
