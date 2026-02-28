@@ -11,15 +11,35 @@ export function detectCategory(title) {
 }
 
 // Bersihkan judul dari kata-kata waktu
-export function cleanTitle(text, parsedResults) {
-    let rawTitle = text;
-    parsedResults.forEach(res => {
-        rawTitle = rawTitle.replace(res.text, '');
-    });
+export function cleanTitle(text) {
+    let rawTitle = text.toLowerCase();
+
+    // Hapus pola jam
+    rawTitle = rawTitle.replace(/\b(?:jam|pukul)\s*\d{1,2}(?:\.\d{2})?(?:\s*(?:pagi|siang|sore|malam))?\b/gi, '');
+
+    // Hapus pola sampe/sampai jam
+    rawTitle = rawTitle.replace(/\b(?:sampe|sampai|s\/d)\s*(?:jam|pukul)?\s*\d{1,2}(?:\.\d{2})?\b/gi, '');
+
+    // Hapus pola hari/keterangan waktu
+    rawTitle = rawTitle.replace(/\b(?:besok|lusa|hari ini|nanti|minggu depan|bulan depan|tahun depan)\b/gi, '');
+
+    // Hapus nama hari (senin-minggu)
+    rawTitle = rawTitle.replace(/\b(?:senin|selasa|rabu|kamis|jumat|sabtu|minggu)\b/gi, '');
+
+    // Hapus preposisi waktu
+    rawTitle = rawTitle.replace(/\b(?:pagi|siang|sore|malam)\b/gi, '');
+
+    // Hapus bagian lokasi ("di ...") jika ada di akhir
+    if (rawTitle.includes(' di ')) {
+        rawTitle = rawTitle.split(/ di /i)[0]; // Ambil bagian sebelum 'di'
+    }
+
+    // Bersihkan sisa karakter aneh
     rawTitle = rawTitle
-        .replace(/\bbesok|lusa|jam|pagi|siang|sore|malam|hari ini|ada|sama|dengan|di|ke|sampe|sampai|minggu depan|bulan depan\b/gi, '')
+        .replace(/\b(?:ada|sama|dengan|ke|buat)\b/gi, '')
         .replace(/\s{2,}/g, ' ')
         .trim();
+
     return rawTitle || "Agenda";
 }
 

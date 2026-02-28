@@ -326,14 +326,52 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`,
     }
 
     // Waktu terdeteksi -> Lanjut bikin event
-    const res = parsedResults[0];
-    if (!res.start || !res.start.isCertain('hour')) {
-        await bot.sendMessage(chatId, "Aku tangkap kegiatannya, tapi jam berapa tuh? 🤍\nCoba sebut jamnya ya, misal: \"jam 15\".");
+    let startHour = null;
+    let startMinute = 0;
+    let endHour = null;
+    let endMinute = 0;
+    let baseRes = parsedResults[0];
+
+    for (const res of parsedResults) {
+        if (res.start && res.start.isCertain('day')) {
+            baseRes = res; // Pakai hasil yang punya informasi hari yg pasti
+        }
+        if (res.start && res.start.isCertain('hour')) {
+            if (startHour === null) {
+                startHour = res.start.get('hour');
+                startMinute = res.start.get('minute') || 0;
+                if (res.end && res.end.isCertain('hour')) {
+                    endHour = res.end.get('hour');
+                    endMinute = res.end.get('minute') || 0;
+                }
+            } else if (endHour === null) {
+                // Time kedua yg ditemukan dianggap sebagai end time (misal "jam 10 sampe jam 12")
+                endHour = res.start.get('hour');
+                endMinute = res.start.get('minute') || 0;
+            }
+        }
+    }
+
+    if (startHour === null) {
+        const askTimeMsg = process.env.BOT_MODE === 'abang'
+            ? "Aku tangkap kegiatannya, tapi jam berapa tuh Salma? 🤍\nCoba sebut jamnya ya, misal: \"jam 15\"."
+            : "Aku tangkap kegiatannya, tapi jam berapa tuh bang? 🤍\nCoba sebut jamnya ya, misal: \"jam 15\".";
+        await bot.sendMessage(chatId, askTimeMsg);
         return;
     }
 
-    const start = res.start.date();
-    let end = res.end ? res.end.date() : new Date(start.getTime() + 60 * 60 * 1000); // Default 1 jam
+    let start = baseRes.start.date();
+    start.setHours(startHour, startMinute, 0, 0);
+
+    let end;
+    if (endHour !== null) {
+        end = new Date(start.getTime());
+        end.setHours(endHour, endMinute, 0, 0);
+        // Jika end time lebih kecil dari start time (misal 23.00 ke 01.00), anggap besoknya
+        if (end < start) end.setDate(end.getDate() + 1);
+    } else {
+        end = new Date(start.getTime() + 60 * 60 * 1000); // Default 1 jam
+    }
 
     // Rule-Based Location Extraction
     let location = 'Online';
@@ -341,12 +379,15 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`,
         const parts = text.split(/ di /i);
         if (parts.length > 1) {
             location = parts.pop().trim();
-            location = location.replace(/\bjam \d+|besok|lusa|pagi|siang|sore|malam\b/gi, '').trim();
+            location = location.replace(/\b(?:jam|pukul)\s*\d{1,2}(?:\.\d{2})?(?:\s*(?:pagi|siang|sore|malam))?\b/gi, '');
+            location = location.replace(/\b(?:sampe|sampai|s\/d)\s*(?:jam|pukul)?\s*\d{1,2}(?:\.\d{2})?\b/gi, '');
+            location = location.replace(/\b(?:besok|lusa|hari ini|nanti|minggu depan|bulan depan|tahun depan)\b/gi, '');
+            location = location.replace(/\b(?:pagi|siang|sore|malam)\b/gi, '').trim();
             if (!location) location = 'Online';
         }
     }
 
-    const rawTitle = cleanTitle(text, parsedResults);
+    const rawTitle = cleanTitle(text);
 
     const titleCategory = rawTitle || detectCategory(text);
 
