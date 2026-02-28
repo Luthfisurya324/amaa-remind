@@ -44,10 +44,16 @@ Aturan:
 2. Jika jam tidak disebutkan, jadikan "null".
 3. Jika waktu selesai tidak disebutkan, buat 'end' 1 jam setelah 'start'.
 
-Kalimat: "${rawText}"`
+Kalimat: "${rawText}"`,
+            config: { responseMimeType: "application/json" }
         });
 
-        const rawTextResponse = response.text.replace(/```json/gi, '').replace(/```/g, '').trim();
+        let rawTextResponse = response.text.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const firstBrace = rawTextResponse.indexOf('{');
+        const lastBrace = rawTextResponse.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+            rawTextResponse = rawTextResponse.substring(firstBrace, lastBrace + 1);
+        }
         const data = JSON.parse(rawTextResponse);
         return {
             title: data.title ? data.title.trim() : null,
@@ -57,7 +63,7 @@ Kalimat: "${rawText}"`
         };
     } catch (e) {
         console.error("Gemini Parse Error:", e.message);
-        return { title: null, location: null, start: null, end: null };
+        return { title: null, location: null, start: null, end: null, error: e.message, rawText: null };
     }
 }
 
@@ -196,10 +202,16 @@ Struktur output JSON yang valid:
   "end": {"dateTime": "2026-03-01T11:00:00+07:00", "timeZone": "Asia/Jakarta"}
 }
 Hanya sertakan field yang berubah. Jika jam diubah, pastikan \`end\` juga disesuaikan 1 jam setelah \`start\`.
-HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`
+HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`,
+                    config: { responseMimeType: "application/json" }
                 });
 
-                const rawJson = response.text.replace(/```json/gi, '').replace(/```/g, '').trim();
+                let rawJson = response.text.replace(/```json/gi, '').replace(/```/g, '').trim();
+                const firstBrace = rawJson.indexOf('{');
+                const lastBrace = rawJson.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1) {
+                    rawJson = rawJson.substring(firstBrace, lastBrace + 1);
+                }
                 const updates = JSON.parse(rawJson);
 
                 if (Object.keys(updates).length > 0) {
@@ -239,17 +251,23 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`
     }
 
     // --- NLP PARSING & EVENT CREATION ---
-    const { title: rawTitle, location, start, end } = await generateSmartData(text);
+    const { title: rawTitle, location, start, end, error, rawText } = await generateSmartData(text);
 
-    if (!start) {
-        if (!rawTitle) {
-            const isAbang = process.env.BOT_MODE === 'abang';
-            const failParsingMsg = isAbang ? "Kurang jelas nih Salma, mau ngapain dan kapan? 🤍\nCoba sebut jam dan kegiatannya ya, misal: \"besok rapat jam 10\"." :
-                "Kurang jelas bang, mau ngapain dan kapan? 🤍\nCoba sebut jam dan kegiatannya, misal: \"besok rapat jam 10\".";
-            await bot.sendMessage(chatId, failParsingMsg);
-        } else {
-            await bot.sendMessage(chatId, "Aku tangkap kegiatannya, tapi kapan tuh? 🤍\nCoba sebut jamnya ya, misal: \"jam 15\".");
+    if (error || (!start && !rawTitle)) {
+        const isAbang = process.env.BOT_MODE === 'abang';
+        let failParsingMsg = isAbang ? "Kurang jelas nih Salma, mau ngapain dan kapan? 🤍\nCoba sebut jam dan kegiatannya ya, misal: \"besok rapat jam 10\"." :
+            "Kurang jelas bang, mau ngapain dan kapan? 🤍\nCoba sebut jam dan kegiatannya, misal: \"besok rapat jam 10\".";
+
+        if (error) {
+            failParsingMsg += `\n\n_[DEBUG INFO]_:\nError: ${error}\nBot Mode: ${process.env.BOT_MODE}`;
         }
+
+        await bot.sendMessage(chatId, failParsingMsg);
+        return;
+    }
+
+    if (!start && rawTitle) {
+        await bot.sendMessage(chatId, "Aku tangkap kegiatannya, tapi kapan tuh? 🤍\nCoba sebut jamnya ya, misal: \"jam 15\".");
         return;
     }
 
