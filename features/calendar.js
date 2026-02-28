@@ -127,14 +127,14 @@ export async function handleCalendarCommand(bot, msg, command, { getAuthClient }
                 const key = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'Asia/Jakarta' });
                 if (!grouped[key]) grouped[key] = [];
                 const time = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
-                grouped[key].push(`  ${time} - ${event.summary}`);
+                grouped[key].push(`  ${time} - ${event.summary.replace(/[<>]/g, '')}`);
             });
 
             Object.keys(grouped).forEach(hari => {
-                text += `📅 *${hari}*\n${grouped[hari].join('\n')}\n\n`;
+                text += `📅 <b>${hari}</b>\n${grouped[hari].join('\n')}\n\n`;
             });
 
-            bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+            bot.sendMessage(chatId, text, { parse_mode: 'HTML' });
         } catch (e) {
             console.error('Gagal cek jadwal:', e.message);
             bot.sendMessage(chatId, "Maaf, aku gagal cek kalendar 😔");

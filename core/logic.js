@@ -243,14 +243,15 @@ export async function processUpdate(bot, update) {
                     return;
                 }
 
-                let text = `📅 *Agenda 30 Hari Ke Depan:*\n\n`;
+                let text = `📅 <b>Agenda 30 Hari Ke Depan:</b>\n\n`;
                 events.forEach((event, i) => {
+                    const safeSummary = (event.summary || '').replace(/[<>]/g, '');
                     const d = new Date(event.start.dateTime || event.start.date);
                     const dateStr = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: 'Asia/Jakarta' });
                     const timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
-                    text += `${i + 1}. *${event.summary}* (${dateStr}, ${timeStr})\n   👉 Hapus: /del_${i + 1}\n\n`;
+                    text += `${i + 1}. <b>${safeSummary}</b> (${dateStr}, ${timeStr})\n   👉 Hapus: /del_${i + 1}\n\n`;
                 });
-                await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+                await bot.sendMessage(chatId, text, { parse_mode: 'HTML' });
             } catch (e) {
                 console.error('Error fetching events for deletion:', e);
                 await bot.sendMessage(chatId, "Gagal mengambil daftar agenda 😔");
@@ -287,7 +288,8 @@ export async function processUpdate(bot, update) {
 
                 const eventToDelete = events[index];
                 await calendar.events.delete({ calendarId: 'primary', eventId: eventToDelete.id });
-                await bot.sendMessage(chatId, `Agenda *${eventToDelete.summary}* berhasil dihapus! 🗑️`, { parse_mode: 'Markdown' });
+                const safeSummary = (eventToDelete.summary || '').replace(/[<>]/g, '');
+                await bot.sendMessage(chatId, `Agenda <b>${safeSummary}</b> berhasil dihapus! 🗑️`, { parse_mode: 'HTML' });
             } catch (e) {
                 console.error('Error deleting event:', e);
                 await bot.sendMessage(chatId, "Gagal menghapus agenda 😔");
@@ -359,14 +361,20 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`;
                     });
 
                     const isAbang = process.env.BOT_MODE === 'abang';
-                    let reply = isAbang ? "Siaapp! Jadwalnya udah aku benerin sesuai mintamu yaa 🪄✅\n\n_Ini yang aku ubah:_" :
-                        "Beres bang! Jadwal udah di-update sesuai permintaan 🪄✅\n\n_Perubahan:_";
+                    let reply = isAbang ? "Siaapp! Jadwalnya udah aku benerin sesuai mintamu yaa 🪄✅\n\n<i>Ini yang aku ubah:</i>" :
+                        "Beres bang! Jadwal udah di-update sesuai permintaan 🪄✅\n\n<i>Perubahan:</i>";
 
-                    if (updates.summary) reply += `\n📌 ${updates.summary}`;
-                    if (updates.location) reply += `\n📍 ${updates.location}`;
+                    if (updates.summary) {
+                        const safeSum = updates.summary.replace(/[<>]/g, '');
+                        reply += `\n📌 ${safeSum}`;
+                    }
+                    if (updates.location) {
+                        const safeLoc = updates.location.replace(/[<>]/g, '');
+                        reply += `\n📍 ${safeLoc}`;
+                    }
                     if (updates.start?.dateTime) reply += `\n⏰ Waktu diupdate`;
 
-                    await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+                    await bot.sendMessage(chatId, reply, { parse_mode: 'HTML' });
                 } else {
                     const failMsg = process.env.BOT_MODE === 'abang' ? "Hmm, aku nggak nemu apa yang harus diubah dari kalimatmu Salma 🤔" : "Hmm, aku gak nemu apa yang harus diubah dari kalimat itu 🤔";
                     await bot.sendMessage(chatId, failMsg);
@@ -410,15 +418,15 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`;
             baseRes = res; // Pakai hasil yang punya informasi hari yg pasti
         }
 
-        // Cek hour dari knownValues (pasti) atau impliedValues (seperti relative time "in 31 minutes")
-        const hasHour = res.start && (res.start.isCertain('hour') || res.start.impliedValues.hour !== undefined || res.start.get('hour') !== null);
+        // Cek hour dari knownValues (pasti)
+        const hasHour = res.start && res.start.isCertain('hour');
 
         if (hasHour) {
             if (startHour === null) {
                 startHour = res.start.get('hour');
                 startMinute = res.start.get('minute') || 0;
 
-                const hasEndHour = res.end && (res.end.isCertain('hour') || res.end.impliedValues?.hour !== undefined || res.end.get('hour') !== null);
+                const hasEndHour = res.end && res.end.isCertain('hour');
                 if (hasEndHour) {
                     endHour = res.end.get('hour');
                     endMinute = res.end.get('minute') || 0;
@@ -503,12 +511,14 @@ HANYA berikan JSON murni, tanpa backticks, tanpa format markdown.`;
         const dateStr = start.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Jakarta' });
         const timeStr = start.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
 
-        let msgReply = isAbang ? `Beres yaa! Jadwalnya udah aku masukin ke Google Calendar ✅\n\n📌 *${titleCategory}*\n📅 ${dateStr}\n⏰ Jam ${timeStr}` :
-            `Sip! Jadwal sudah masuk Google Calendar ✅\n\n📌 *${titleCategory}*\n📅 ${dateStr}\n⏰ Jam ${timeStr}`;
-        if (location) msgReply += `\n📍 Lokasi: ${location}`;
+        const safeTitle = titleCategory.replace(/[<>]/g, '');
+        const safeLoc = (location || '').replace(/[<>]/g, '');
+        let msgReply = isAbang ? `Beres yaa! Jadwalnya udah aku masukin ke Google Calendar ✅\n\n📌 <b>${safeTitle}</b>\n📅 ${dateStr}\n⏰ Jam ${timeStr}` :
+            `Sip! Jadwal sudah masuk Google Calendar ✅\n\n📌 <b>${safeTitle}</b>\n📅 ${dateStr}\n⏰ Jam ${timeStr}`;
+        if (location) msgReply += `\n📍 Lokasi: ${safeLoc}`;
         msgReply += isAbang ? `\n\nNanti aku ingetin 30 menit sebelum mulai ya Salma 🤍` : `\n\nAku kasih tau 30 menit sebelum mulai ya 🤍`;
 
-        await bot.sendMessage(chatId, msgReply, { parse_mode: 'Markdown' });
+        await bot.sendMessage(chatId, msgReply, { parse_mode: 'HTML' });
     } catch (e) {
         console.error('Insert failed:', e.message);
         await bot.sendMessage(chatId, "Waduh gagal simpan ke Calendar 😔 Coba lagi ya.");
