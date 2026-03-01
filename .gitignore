@@ -130,6 +130,5 @@ token.json
 last_chat_id.txt
 reminders.json
 stats.json
-test_*.js
-test-*.mjs
-test.js
+# Tests
+tests/
