@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dashboard</title>
+    <!-- Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&family=Inter:wght@400;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        /* Base Defaults */
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Amaa Theme (Salma) */
+        body.theme-amaa {
+            background-color: #FAFAFA;
+            color: #333333;
+            font-family: 'Quicksand', sans-serif;
+        }
+
+        .theme-amaa .card {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 182, 193, 0.3);
+            border-radius: 1.5rem;
+            box-shadow: 0 8px 32px rgba(255, 182, 193, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .theme-amaa .accent-text {
+            color: #FF8BA0;
+        }
+
+        .theme-amaa .accent-bg {
+            background-color: #FFE4E1;
+            color: #D14D66;
+        }
+
+        .theme-amaa .btn-primary {
+            background: linear-gradient(135deg, #FFB6C1, #FFC0CB);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(255, 182, 193, 0.4);
+            border-radius: 1rem;
+        }
+
+        /* Abang Theme */
+        body.theme-abang {
+            background-color: #0F172A;
+            color: #E2E8F0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .theme-abang .card {
+            background: #1E293B;
+            border: 1px solid #334155;
+            border-radius: 1rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .theme-abang .accent-text {
+            color: #06B6D4;
+        }
+
+        .theme-abang .accent-bg {
+            background-color: rgba(6, 182, 212, 0.15);
+            color: #06B6D4;
+        }
+
+        .theme-abang .btn-primary {
+            background: #06B6D4;
+            color: #fff;
+            border-radius: 0.5rem;
+        }
+
+        /* Utility Classes */
+        .glass-header {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            backdrop-filter: blur(12px);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+    </style>
+</head>
+
+<body class="theme-amaa min-h-screen pb-20">
+
+    <!-- Header -->
+    <header class="glass-header px-6 py-5 flex justify-between items-center bg-white/50 dark:bg-slate-900/50">
+        <div>
+            <h1 class="text-2xl font-bold font-heading" id="greetingTitle">Halo, ✨</h1>
+            <p class="text-sm opacity-80" id="currentDate">Memuat tanggal...</p>
+        </div>
+        <div class="w-12 h-12 rounded-full flex items-center justify-center text-2xl accent-bg" id="avatarEmoji">
+            🤍
+        </div>
+    </header>
+
+    <main class="px-5 mt-6 space-y-6">
+
+        <!-- Stats Overview -->
+        <section class="grid grid-cols-2 gap-4">
+            <div class="card p-4 flex flex-col items-center justify-center animate-fade-in"
+                style="animation-delay: 0.1s;">
+                <span class="text-3xl mb-1">📅</span>
+                <span class="text-2xl font-bold" id="statEventsCount">-</span>
+                <span class="text-xs opacity-70 text-center mt-1">Acara Bulan Ini</span>
+            </div>
+            <div class="card p-4 flex flex-col items-center justify-center animate-fade-in"
+                style="animation-delay: 0.2s;">
+                <span class="text-3xl mb-1">🔕</span>
+                <span class="text-2xl font-bold" id="statFocusCount">-</span>
+                <span class="text-xs opacity-70 text-center mt-1">Sesi Fokus</span>
+            </div>
+        </section>
+
+        <!-- Connection Status -->
+        <section class="card p-5 animate-fade-in flex items-center justify-between" style="animation-delay: 0.3s;"
+            id="authStatusCard">
+            <div class="flex items-center space-x-3">
+                <div class="w-2 h-2 rounded-full bg-gray-400" id="authIndicator"></div>
+                <div>
+                    <h3 class="font-semibold text-sm">Google Calendar</h3>
+                    <p class="text-xs opacity-70" id="authText">Mengecek koneksi...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Upcoming Agenda -->
+        <section class="animate-fade-in" style="animation-delay: 0.4s;">
+            <div class="flex justify-between items-end mb-4 px-1">
+                <h2 class="text-lg font-bold">Agenda Mendatang</h2>
+                <button class="text-xs accent-text font-semibold hidden">Lihat Semua</button>
+            </div>
+
+            <div id="agendaList" class="space-y-3">
+                <!-- Skeleton Loader -->
+                <div class="card p-4 flex animate-pulse">
+                    <div class="w-12 h-12 rounded-lg bg-gray-300 dark:bg-slate-700 mr-4"></div>
+                    <div class="flex-1">
+                        <div class="h-4 bg-gray-300 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
+                        <div class="h-3 bg-gray-300 dark:bg-slate-700 rounded w-1/2"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Floating Action Button for future features -->
+    <!-- <button class="fixed bottom-6 right-6 w-14 h-14 rounded-full btn-primary flex items-center justify-center text-xl shadow-lg z-50 transition transform active:scale-95">
+        +
+    </button> -->
+
+    <script>
+        // Init Telegram Web App
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Make it full height
+
+        // Determine Theme based on URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        const mode = urlParams.get('mode') || 'amaa'; // Fallback
+
+        const body = document.body;
+        const greetingTitle = document.getElementById('greetingTitle');
+        const avatarEmoji = document.getElementById('avatarEmoji');
+
+        if (mode === 'abang') {
+            body.classList.replace('theme-amaa', 'theme-abang');
+            greetingTitle.innerHTML = 'Halo Bang! 🔥';
+            avatarEmoji.innerHTML = '🚀';
+            tg.setHeaderColor('#0F172A');
+            tg.setBackgroundColor('#0F172A');
+        } else {
+            body.classList.replace('theme-abang', 'theme-amaa');
+            greetingTitle.innerHTML = 'Halo Salma! 🤍';
+            avatarEmoji.innerHTML = '✨';
+            tg.setHeaderColor('#FAFAFA');
+            tg.setBackgroundColor('#FAFAFA');
+        }
+
+        // Set Date
+        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' };
+        document.getElementById('currentDate').textContent = new Date().toLocaleDateString('id-ID', dateOptions);
+
+        // Fetch Data from Server
+        async function fetchDashboardData() {
+            try {
+                // We pass the initData to authenticate the user securely
+                const initData = tg.initData || '';
+
+                // For local dev where initData might be empty, pass a mock chat ID via url param for testing
+                const devChatId = urlParams.get('dev_chat_id');
+                const fetchUrl = `/api/dashboard-data?initData=${encodeURIComponent(initData)}${devChatId ? '&dev_chat_id=' + devChatId : ''}`;
+
+                const response = await fetch(fetchUrl);
+
+                if (!response.ok) {
+                    throw new Error('Gagal memuat data');
+                }
+
+                const data = await response.json();
+                renderData(data);
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('agendaList').innerHTML = `<div class="card p-4 text-center opacity-70 text-sm">Gagal memuat jadwal 😔</div>`;
+            }
+        }
+
+        function renderData(data) {
+            // Stats
+            document.getElementById('statEventsCount').textContent = data.stats.totalEvents || 0;
+            document.getElementById('statFocusCount').textContent = data.stats.focusSessions || 0;
+
+            // Auth Status
+            const authIndicator = document.getElementById('authIndicator');
+            const authText = document.getElementById('authText');
+            if (data.isConnected) {
+                authIndicator.classList.replace('bg-gray-400', 'bg-green-500');
+                authText.textContent = 'Terhubung';
+            } else {
+                authIndicator.classList.replace('bg-gray-400', 'bg-red-500');
+                authText.textContent = 'Belum terhubung';
+            }
+
+            // Agenda List
+            const agendaList = document.getElementById('agendaList');
+            agendaList.innerHTML = ''; // Clear skeleton
+
+            if (!data.isConnected) {
+                agendaList.innerHTML = `
+                    <div class="card p-5 text-center">
+                        <p class="text-sm opacity-80 mb-3">Kalender belum terhubung.</p>
+                        <button class="btn-primary px-4 py-2 text-sm font-semibold" onclick="tg.close()">Kembali ke Chat & Hubungkan</button>
+                    </div>`;
+                return;
+            }
+
+            if (!data.events || data.events.length === 0) {
+                const emptyMsg = mode === 'abang' ? "Nggak ada jadwal dalam 7 hari ke depan. Santai bang ☕" : "Kosong nih jadwalmu Salma. Yuk istirahat dulu 🤍";
+                agendaList.innerHTML = `<div class="card p-4 text-center opacity-70 text-sm">${emptyMsg}</div>`;
+                return;
+            }
+
+            // Render Events
+            data.events.forEach(event => {
+                const d = new Date(event.start.dateTime || event.start.date);
+                const dayName = d.toLocaleDateString('id-ID', { weekday: 'short', timeZone: 'Asia/Jakarta' });
+                const dateNum = d.toLocaleDateString('id-ID', { day: 'numeric', timeZone: 'Asia/Jakarta' });
+                const timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
+
+                const safeSum = (event.summary || '(Tanpa judul)').replace(/[<>]/g, '');
+
+                const cardHtml = `
+                <div class="card p-3 flex items-center">
+                    <div class="w-14 h-14 rounded-xl accent-bg flex flex-col items-center justify-center mr-4 shrink-0">
+                        <span class="text-xs font-bold uppercase">${dayName}</span>
+                        <span class="text-lg font-extrabold">${dateNum}</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-bold text-base truncate">${safeSum}</h3>
+                        <p class="text-xs opacity-70">${timeStr} ${event.location ? '📍 ' + event.location : ''}</p>
+                    </div>
+                </div>`;
+
+                agendaList.insertAdjacentHTML('beforeend', cardHtml);
+            });
+        }
+
+        // Inform Telegram that the Web App is ready to be displayed
+        tg.ready();
+
+        // Fetch data after a slight delay for smooth animation
+        setTimeout(fetchDashboardData, 300);
+
+    </script>
+</body>
+
+</html>

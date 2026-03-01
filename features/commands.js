@@ -24,6 +24,7 @@ export async function handleGeneralCommands(bot, msg, command, parts) {
             '"Nongkrong hari ini jam 17 sampe 19"',
             '"Kelas Senin jam 8 pagi\"\n',
             '🛠 *Commands:*',
+            '/dashboard - Buka Dashboard Visual',
             '/connect - Hubungkan Google Calendar',
             '/today - Jadwal hari ini',
             '/tomorrow - Jadwal besok',
@@ -54,6 +55,26 @@ export async function handleGeneralCommands(bot, msg, command, parts) {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: '🔗 Hubungkan Google Calendar', url: authUrl }]
+                ]
+            }
+        });
+        return true;
+    }
+
+    if (command === '/dashboard') {
+        const isAbang = process.env.BOT_MODE === 'abang';
+        const msgText = isAbang ? "Ini dashboard kalender kamu Salma ✨" : "Ini dashboard kalender kamu bang 🔥";
+        const btnText = isAbang ? "🌸 Buka Dashboard" : "🚀 Buka Dashboard";
+
+        // Ensure you use HTTPS and an absolute URL for Web Apps.
+        // Assuming Vercel URL is primary for production.
+        const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://amaa-remind.vercel.app';
+        const webAppUrl = `${baseUrl}/dashboard.html?mode=${process.env.BOT_MODE || 'amaa'}`;
+
+        await bot.sendMessage(chatId, msgText, {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: btnText, web_app: { url: webAppUrl } }]
                 ]
             }
         });
