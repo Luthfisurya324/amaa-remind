@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { supabase } from '../core/supabase.js';
+import { upsertUserState } from '../core/db/queries.js';
 import { getAuthClient } from '../core/calendar.js';
 import { detectCategory, translateIndoToChrono, cleanTitle } from '../core/utils.js';
 import { addReminder } from '../core/reminders.js';
@@ -122,9 +122,7 @@ export async function handleEventCreation(bot, msg, text) {
         const eventId = res.data.id;
         console.log('Event created:', res.data.htmlLink);
 
-        await supabase
-            .from('user_state')
-            .upsert({ chat_id: chatId.toString(), last_google_event_id: eventId, bot_mode: process.env.BOT_MODE });
+        await upsertUserState(chatId, { last_google_event_id: eventId, bot_mode: process.env.BOT_MODE });
 
         await trackEvent(titleCategory, start.getHours());
 

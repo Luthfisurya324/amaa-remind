@@ -1,13 +1,17 @@
 import { google } from 'googleapis';
-import { supabase } from '../core/supabase.js';
+import { getAllActiveTokens } from '../core/db/queries.js';
 
 export async function sendDailySummary(bot, getAuthClient) {
     // Get all chat IDs that have tokens (meaning they are connected)
-    const { data: users, error: fetchError } = await supabase
-        .from('tokens')
-        .select('chat_id');
+    let users;
+    try {
+        users = await getAllActiveTokens();
+    } catch (error) {
+        console.error("Error fetching tokens", error);
+        return;
+    }
 
-    if (fetchError || !users) return;
+    if (!users || users.length === 0) return;
 
     for (const { chat_id } of users) {
         const oAuth2Client = await getAuthClient(chat_id, bot);

@@ -1,48 +1,10 @@
-import { supabase } from '../core/supabase.js';
+import { trackDbStat, getDbStats, resetDbStats } from '../core/db/queries.js';
 
 export async function trackEvent(category, eventHour) {
-    const monthKey = new Date().toISOString().slice(0, 7);
-    const hourKey = eventHour !== undefined ? `${eventHour}:00` : null;
-
-    // Use Postgres upsert logic
-    const { data: existing, error: fetchError } = await supabase
-        .from('stats')
-        .select('*')
-        .eq('month', monthKey)
-        .eq('category', category)
-        .eq('bot_mode', process.env.BOT_MODE) // Added filter
-        .single();
-
-    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "no rows found"
-        console.error('❌ Error fetching stats:', fetchError);
-        return;
-    }
-
-    if (existing) {
-        let hours = existing.event_hours || {};
-        if (hourKey) {
-            hours[hourKey] = (hours[hourKey] || 0) + 1;
-        }
-        await supabase
-            .from('stats')
-            .update({
-                count: existing.count + 1,
-                event_hours: hours,
-                bot_mode: process.env.BOT_MODE // Added to update
-            })
-            .eq('id', existing.id);
-    } else {
-        let hours = {};
-        if (hourKey) hours[hourKey] = 1;
-        await supabase
-            .from('stats')
-            .insert({
-                month: monthKey,
-                category: category,
-                count: 1,
-                event_hours: hours,
-                bot_mode: process.env.BOT_MODE // Added to insert
-            });
+    try {
+        await trackDbStat(category, eventHour);
+    } catch (error) {
+        console.error('❌ Error tracking stats:', error);
     }
 }
 
@@ -51,14 +13,11 @@ export async function handleStatsCommand(bot, msg, command) {
     const monthKey = new Date().toISOString().slice(0, 7);
 
     if (command === '/stats') {
-        const { data: stats, error } = await supabase
-            .from('stats')
-            .select('*')
-            .eq('month', monthKey)
-            .eq('bot_mode', process.env.BOT_MODE); // Added filter
-
-        if (error) {
-            console.error('❌ Error fetching stats from Supabase:', error);
+        let stats;
+        try {
+            stats = await getDbStats(monthKey);
+        } catch (error) {
+            console.error('❌ Error fetching stats from DB:', error);
             bot.sendMessage(chatId, "Waduh, gagal ambil data statistik nih 😭");
             return true;
         }
@@ -105,16 +64,12 @@ export async function handleStatsCommand(bot, msg, command) {
     }
 
     if (command === '/resetstats') {
-        const { error } = await supabase
-            .from('stats')
-            .delete()
-            .eq('month', monthKey);
-
-        if (error) {
+        try {
+            await resetDbStats(monthKey);
+            bot.sendMessage(chatId, "Statistik bulan ini sudah di-reset! 🗑️ Mulai dari nol lagi ya 🤍");
+        } catch (error) {
             console.error('❌ Error resetting stats:', error);
             bot.sendMessage(chatId, "Gagal reset statistik 😭");
-        } else {
-            bot.sendMessage(chatId, "Statistik bulan ini sudah di-reset! 🗑️ Mulai dari nol lagi ya 🤍");
         }
         return true;
     }

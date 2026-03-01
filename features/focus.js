@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { supabase } from '../core/supabase.js';
+import { upsertUserState, getUserState, clearFocusSession } from '../core/db/queries.js';
 
 export async function handleFocusCommand(bot, msg, command, parts, { getAuthClient, addReminder, removeReminderByTitle, trackEvent }) {
     const chatId = msg.chat.id;
@@ -31,10 +31,8 @@ export async function handleFocusCommand(bot, msg, command, parts, { getAuthClie
             const res = await calendar.events.insert({ calendarId: 'primary', resource: event });
             const eventId = res.data.id;
 
-            // Store state in Supabase
-            await supabase
-                .from('user_state')
-                .upsert({ chat_id: chatId.toString(), last_focus_event_id: eventId, bot_mode: process.env.BOT_MODE });
+            // Store state in DB
+            await upsertUserState(chatId, { last_focus_event_id: eventId, bot_mode: process.env.BOT_MODE });
 
             await trackEvent('🔕 Focus Session', start.getHours());
             await addReminder(chatId, '🔕 Focus Session selesai!', end.getTime(), start.getTime());
@@ -54,14 +52,14 @@ export async function handleFocusCommand(bot, msg, command, parts, { getAuthClie
     }
 
     if (command === '/unfocus') {
-        const { data: state, error: fetchError } = await supabase
-            .from('user_state')
-            .select('last_focus_event_id')
-            .eq('chat_id', chatId.toString())
-            .eq('bot_mode', process.env.BOT_MODE)
-            .single();
+        let state;
+        try {
+            state = await getUserState(chatId);
+        } catch (e) {
+            console.error(e);
+        }
 
-        if (fetchError || !state?.last_focus_event_id) {
+        if (!state?.last_focus_event_id) {
             bot.sendMessage(chatId, "Nggak ada focus session yang aktif nih 🤔");
             return true;
         }
@@ -75,11 +73,7 @@ export async function handleFocusCommand(bot, msg, command, parts, { getAuthClie
             await removeReminderByTitle('Focus Session');
 
             // Clear state
-            await supabase
-                .from('user_state')
-                .update({ last_focus_event_id: null })
-                .eq('chat_id', chatId.toString())
-                .eq('bot_mode', process.env.BOT_MODE);
+            await clearFocusSession(chatId);
 
             bot.sendMessage(chatId, "Focus session dibatalkan! 🔔\nIstirahat dulu gapapa kok 🤍");
         } catch (e) {

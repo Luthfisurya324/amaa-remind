@@ -3,7 +3,7 @@ import { handleGeneralCommands } from '../features/commands.js';
 import { handleEventCreation } from '../features/events.js';
 import { getAuthClient } from './calendar.js';
 import { generateAIResponse } from './ai.js';
-import { supabase } from './supabase.js';
+import { upsertUserState } from './db/queries.js';
 import { handleStatsCommand, trackEvent } from '../features/stats.js';
 import { handleCalendarCommand } from '../features/calendar.js';
 import { addReminder, removeReminderByTitle } from './reminders.js';
@@ -17,7 +17,7 @@ export async function processUpdate(bot, update) {
     if (!text) return;
 
     // Save Chat ID to user_state for cron jobs
-    await supabase.from('user_state').upsert({ chat_id: chatId.toString(), last_chat_id: chatId.toString(), bot_mode: process.env.BOT_MODE });
+    await upsertUserState(chatId, { last_chat_id: chatId.toString(), bot_mode: process.env.BOT_MODE });
 
     // --- COMMAND HANDLERS ---
     if (text.startsWith('/')) {

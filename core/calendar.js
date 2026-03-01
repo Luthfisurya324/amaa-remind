@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { supabase } from './supabase.js';
+import { getToken, saveToken, getUnsentDbRemindersByChatId } from './db/queries.js';
 
 export function getOAuth2Client() {
     const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/api/oauth2callback';
@@ -13,13 +13,9 @@ export function getOAuth2Client() {
 export async function getAuthClient(chatId, bot) {
     const oAuth2Client = getOAuth2Client();
     try {
-        const { data: tokenData, error } = await supabase
-            .from('tokens')
-            .select('token_data')
-            .eq('chat_id', chatId.toString())
-            .single();
+        const tokenData = await getToken(chatId);
 
-        if (error || !tokenData) throw new Error('No token found');
+        if (!tokenData) throw new Error('No token found');
 
         oAuth2Client.setCredentials(tokenData.token_data);
 
@@ -27,21 +23,12 @@ export async function getAuthClient(chatId, bot) {
         oAuth2Client.on('tokens', async (tokens) => {
             if (tokens.refresh_token) {
                 // If we got a new refresh token, store everything
-                await supabase
-                    .from('tokens')
-                    .upsert({ chat_id: chatId.toString(), token_data: tokens });
+                await saveToken(chatId, tokens);
             } else {
                 // Otherwise just update the access token parts
-                const { data: current } = await supabase
-                    .from('tokens')
-                    .select('token_data')
-                    .eq('chat_id', chatId.toString())
-                    .single();
-
-                const updatedToken = { ...current.token_data, ...tokens };
-                await supabase
-                    .from('tokens')
-                    .upsert({ chat_id: chatId.toString(), token_data: updatedToken });
+                const current = await getToken(chatId);
+                const updatedToken = { ...(current ? current.token_data : {}), ...tokens };
+                await saveToken(chatId, updatedToken);
             }
         });
 
@@ -54,15 +41,10 @@ export async function getAuthClient(chatId, bot) {
     }
 }
 
-export async function saveToken(chatId, token) {
-    const { error } = await supabase
-        .from('tokens')
-        .upsert({ chat_id: chatId.toString(), token_data: token });
-
-    if (error) {
-        console.error('❌ Error saving token:', error);
-        throw error;
-    }
+// saveToken method is now handled by the DAL. 
+// Function signature exported for backward compatibility
+export async function saveAuthToken(chatId, token) {
+    await saveToken(chatId, token);
 }
 
 // 🔄 CRASH RECOVERY — Scan Calendar and sync with Supabase
@@ -85,12 +67,8 @@ export async function crashRecoveryCheck(bot, chatId, loadReminders, addReminder
 
         const events = res.data.items || [];
 
-        // Note: loadReminders would now fetch from Supabase
-        const { data: existingReminders } = await supabase
-            .from('reminders')
-            .select('*')
-            .eq('chat_id', chatId.toString())
-            .eq('sent', false);
+        // Note: loadReminders would now fetch from DB
+        const existingReminders = await getUnsentDbRemindersByChatId(chatId);
 
         let added = 0;
 

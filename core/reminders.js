@@ -1,33 +1,20 @@
-import { supabase } from './supabase.js';
+import { addDbReminder, removeDbReminderByTitle, getDueReminders, markDbReminderSent, cleanupOldDbReminders } from './db/queries.js';
 
 export async function addReminder(chatId, title, reminderTime, startTime) {
-    const { data, error } = await supabase
-        .from('reminders')
-        .insert({
-            chat_id: chatId.toString(), // Ensure it's stored as text
-            title,
-            reminder_time: new Date(reminderTime).toISOString(),
-            start_time: startTime ? new Date(startTime).toISOString() : null,
-            sent: false,
-            bot_mode: process.env.BOT_MODE
-        });
-
-    if (error) {
-        console.error('❌ Error saving reminder to Supabase:', error);
+    try {
+        const data = await addDbReminder(chatId, title, reminderTime, startTime);
+        return data;
+    } catch (error) {
+        console.error('❌ Error saving reminder to DB:', error);
         throw error;
     }
-    return data;
 }
 
 export async function removeReminderByTitle(titleSubstring) {
-    const { error } = await supabase
-        .from('reminders')
-        .delete()
-        .eq('bot_mode', process.env.BOT_MODE)
-        .ilike('title', `%${titleSubstring}%`);
-
-    if (error) {
-        console.error('❌ Error deleting reminder from Supabase:', error);
+    try {
+        await removeDbReminderByTitle(titleSubstring);
+    } catch (error) {
+        console.error('❌ Error deleting reminder from DB:', error);
         throw error;
     }
 }
@@ -36,14 +23,10 @@ export async function checkAndSendReminders(bot) {
     const now = new Date().toISOString();
 
     // Get unsent reminders that are due
-    const { data: reminders, error } = await supabase
-        .from('reminders')
-        .select('*')
-        .eq('sent', false)
-        .eq('bot_mode', process.env.BOT_MODE)
-        .lte('reminder_time', now);
-
-    if (error) {
+    let reminders;
+    try {
+        reminders = await getDueReminders(now);
+    } catch (error) {
         console.error('❌ Error fetching due reminders:', error);
         return;
     }
@@ -59,10 +42,7 @@ export async function checkAndSendReminders(bot) {
             await bot.sendMessage(r.chat_id, reminderTxt, { parse_mode: 'Markdown' });
 
             // Mark as sent
-            await supabase
-                .from('reminders')
-                .update({ sent: true })
-                .eq('id', r.id);
+            await markDbReminderSent(r.id);
 
             console.log(`✅ Sent reminder for: ${r.title}`);
         } catch (err) {
@@ -71,6 +51,10 @@ export async function checkAndSendReminders(bot) {
     }
 
     // Optional: Cleanup old sent reminders (older than 24 hours)
-    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    await supabase.from('reminders').delete().eq('sent', true).eq('bot_mode', process.env.BOT_MODE).lt('reminder_time', dayAgo);
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    try {
+        await cleanupOldDbReminders(dayAgo);
+    } catch (e) {
+        // ignore
+    }
 }

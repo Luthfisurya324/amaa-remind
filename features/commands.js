@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { supabase } from '../core/supabase.js';
+import { getUserState } from '../core/db/queries.js';
 import { getAuthClient, getOAuth2Client } from '../core/calendar.js';
 import { callTripleFallback } from '../core/ai.js';
 
@@ -148,7 +148,7 @@ export async function handleGeneralCommands(bot, msg, command, parts) {
             return true;
         }
 
-        const { data: state } = await supabase.from('user_state').select('last_google_event_id').eq('chat_id', chatId.toString()).eq('bot_mode', process.env.BOT_MODE).single();
+        const state = await getUserState(chatId);
         if (!state?.last_google_event_id) {
             await bot.sendMessage(chatId, "Nggak ada event terakhir yang bisa diedit nih 🤔");
             return true;
